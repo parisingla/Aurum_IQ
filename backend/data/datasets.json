@@ -1,0 +1,16 @@
+[
+  {
+    "id": "ds-3f9c19b1c7a8",
+    "filename": "bhavcopy-mini.csv",
+    "sha256": "3f9c19b1c7a8",
+    "mode": "api",
+    "rows": 3,
+    "fromDate": "2026-01-05",
+    "toDate": "2026-01-07",
+    "symbols": [
+      "GOLDM"
+    ],
+    "errors": 0,
+    "warnings": 0
+  }
+]
