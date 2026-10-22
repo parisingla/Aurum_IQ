@@ -1,42 +1,86 @@
 @import "tailwindcss";
 
 /* ===========================================================================
-   Aurum IQ design tokens — charcoal terminal, warm gold, restrained signals
+   Aurum IQ design tokens — Ocean-ivory light theme with exact color specifications
    =========================================================================== */
 
 @theme {
-  --font-sans: var(--font-plex-sans), ui-sans-serif, system-ui, -apple-system,
-    "Segoe UI", sans-serif;
-  --font-mono: var(--font-plex-mono), ui-monospace, SFMono-Regular, Menlo,
-    monospace;
-  --font-display: var(--font-newsreader), ui-serif, Georgia, serif;
+  --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "SF Mono", ui-monospace, Menlo, monospace;
+  --font-display: var(--font-playfair), "Playfair Display", ui-serif, Georgia, serif;
 
-  /* surfaces — charcoal, warm-shifted */
-  --color-ink-950: #08080a;
-  --color-ink-900: #0a0a0c;
-  --color-ink-850: #0f0f12;
-  --color-ink-800: #131316;
-  --color-ink-750: #17171b;
-  --color-ink-700: #1c1c21;
+  /* Primary brand colors - Exact specifications */
+  --color-ocean-navy: #0B2545;
+  --color-ocean-teal: #2796A3;
+  --color-warm-gold: #DDAF35;
+  --color-soft-ivory: #FFF8EC;
+  --color-white-surface: #FFFFFF;
+  --color-pale-aqua: #E5F4F2;
+  --color-light-sand: #F2E7D5;
+
+  /* Text colors */
+  --color-primary-text: #17243A;
+  --color-secondary-text: #657387;
+  --color-border: #E7E1D5;
+
+  /* Status colors */
+  --color-positive: #217A58;
+  --color-negative: #B94C4C;
+  --color-warning: #A96C16;
+
+  /* surfaces — ivory warm-shifted light theme */
+  --color-ivory-50: #FFF8EC;
+  --color-ivory-100: #FFF8EC;
+  --color-ivory-150: #F2E7D5;
+  --color-ivory-200: #E5F4F2;
+  --color-ivory-250: #E7E1D5;
+  --color-ivory-300: #E7E1D5;
+
+  /* Ocean navy variants */
+  --color-ocean-900: #0B2545;
+  --color-ocean-850: #122E52;
+  --color-ocean-800: #1A3760;
+  --color-ocean-750: #23406E;
+  --color-ocean-700: #2C497C;
+
+  /* Ocean teal variants */
+  --color-teal-900: #2796A3;
+  --color-teal-850: #2BA6B4;
+  --color-teal-800: #2FB6C5;
+  --color-teal-750: #33C6D6;
+  --color-teal-700: #37D6E7;
+
+  /* Gold variants */
+  --color-gold: #DDAF35;
+  --color-gold-bright: #E6BE4D;
+  --color-gold-deep: #C49F2F;
+  --color-gold-muted: #B89533;
+  --color-metallic-gold: #C78A16;
+  --color-gold-light: #F0CF77;
+
+  /* Ocean accents from the brand plate */
+  --color-ocean-950: #052B45;
+  --color-ocean-blue: #087CA5;
+  --color-turquoise: #43B9C2;
+  --color-aqua-soft: #D8F2EF;
+  --color-paper: #FBF5EB;
+  --color-success: #B8F0D6;
 
   /* hairlines */
-  --color-line: #23232a;
-  --color-line-strong: #33333d;
+  --color-line: #E7E1D5;
+  --color-line-strong: #D4CEC2;
 
-  /* type */
-  --color-bone: #eae7e0;
-  --color-ash: #a5a199;
-  --color-dim: #837f76;
+  /* type on light */
+  --color-ink: #17243A;
+  --color-charcoal: #657387;
+  --color-stone: #8A959F;
 
-  /* brand + market semantics */
-  --color-gold: #d6a640;
-  --color-gold-bright: #f0c766;
-  --color-gold-deep: #7a5e20;
-  --color-up: #63a98b;
-  --color-down: #c87068;
-  --color-info: #7f9bc4;
+  /* Legacy mappings for compatibility */
+  --color-up: #217A58;
+  --color-down: #B94C4C;
+  --color-info: #2796A3;
 
-  --color-ring: #f0c766;
+  --color-ring: #2796A3;
 
   /* spacing scale tuned for dense market data (density dial: high) */
   --spacing: 0.25rem;
@@ -50,13 +94,13 @@
 
 @layer base {
   html {
-    color-scheme: dark;
+    color-scheme: light;
     -webkit-text-size-adjust: 100%;
   }
 
   body {
-    background-color: var(--color-ink-900);
-    color: var(--color-bone);
+    background-color: var(--color-paper);
+    color: var(--color-ink);
     font-family: var(--font-sans);
     font-size: 0.9375rem;
     line-height: 1.55;
@@ -66,8 +110,8 @@
   }
 
   ::selection {
-    background: color-mix(in srgb, var(--color-gold) 40%, transparent);
-    color: var(--color-bone);
+    background: color-mix(in srgb, var(--color-gold) 30%, transparent);
+    color: var(--color-ink);
   }
 
   /* One visible focus treatment for the whole product. */
@@ -116,7 +160,7 @@
     font-size: 0.6875rem;
     line-height: 1.2;
     letter-spacing: 0.01em;
-    color: var(--color-dim);
+    color: var(--color-stone);
   }
 
   /* Hairline rule that fills the remaining width of a section head. */
@@ -141,4 +185,142 @@
     transition-duration: 0.001ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+/* ===========================================================================
+   Color mapping for light theme - override dark theme references
+   =========================================================================== */
+
+/* Ink colors for light theme */
+.bg-ink-950 { background-color: var(--color-ocean-900) !important; }
+.bg-ink-900 { background-color: var(--color-ivory-100) !important; }
+.bg-ink-850 { background-color: var(--color-ivory-150) !important; }
+.bg-ink-800 { background-color: var(--color-ivory-200) !important; }
+.bg-ink-750 { background-color: var(--color-ivory-250) !important; }
+.bg-ink-700 { background-color: var(--color-ivory-300) !important; }
+
+.text-ink-950 { color: var(--color-ocean-900) !important; }
+.text-ink-900 { color: var(--color-ink) !important; }
+.text-ink-850 { color: var(--color-charcoal) !important; }
+.text-ink-800 { color: var(--color-stone) !important; }
+
+.border-ink-950 { border-color: var(--color-ocean-900) !important; }
+.border-ink-900 { border-color: var(--color-ivory-100) !important; }
+.border-ink-850 { border-color: var(--color-ivory-150) !important; }
+.border-ink-800 { border-color: var(--color-ivory-200) !important; }
+
+/* Text colors for light theme */
+.text-bone { color: var(--color-ink) !important; }
+.text-ash { color: var(--color-charcoal) !important; }
+.text-dim { color: var(--color-stone) !important; }
+
+/* Border colors for light theme */
+.border-line { border-color: var(--color-line) !important; }
+.border-line-strong { border-color: var(--color-line-strong) !important; }
+
+/* Background adjustments */
+.bg-line { background-color: var(--color-line) !important; }
+.bg-line-strong { background-color: var(--color-line-strong) !important; }
+
+/* Focus ring color */
+.focus-visible\:outline-ring:focus-visible {
+  outline-color: var(--color-ring);
+}
+
+/* ===========================================================================
+   Marble artwork system — one family, three variants
+   ---------------------------------------------------------------------------
+   Variant A "wave"     — wide organic wave (hero panel, large areas)
+   Variant B "edge"     — vertical artwork with flowing inward curve (tool cards)
+   Variant C "fragment" — large geological fragment clipped at an edge (sidebar)
+   Supporting masks: "paper" (torn ivory base), "vein" (organic gold inset).
+
+   All masks are smooth cubic-bezier silhouettes stretched to 100%×100%, so the
+   same shape scales across sizes without jagged points or rectangular cuts.
+   =========================================================================== */
+
+:root {
+  /* Proportions */
+  --marble-card-width: 36%;      /* artwork width share on tool cards (30–38%) */
+  --marble-card-radius: 6px;     /* matches --radius-lg card corners */
+  --marble-hero-panel: 88% 58%;  /* hero panel width/height of its box */
+  --marble-fragment-height: 11rem;
+
+  /* Surface treatment */
+  --marble-opacity: 0.94;        /* base artwork opacity */
+  --marble-vein-opacity: 0.78;   /* concentrated gold insets */
+  --marble-shadow: 0 12px 26px -16px rgb(11 37 69 / 0.4);
+
+  /* Colour balance: blue family dominates, gold is a mineral accent */
+  --marble-blue-weight: 70%;
+  --marble-gold-weight: 18%;
+  --marble-light-weight: 12%;
+}
+
+/* Core textures: identical geometry, palette-shifted family */
+.texture-ocean {
+  background-image: url("/textures/marble-ocean.svg");
+  background-size: cover;
+  background-position: center;
+}
+
+.texture-teal {
+  background-image: url("/textures/marble-teal.svg");
+  background-size: cover;
+  background-position: center;
+}
+
+.texture-navy {
+  background-image: url("/textures/marble-navy.svg");
+  background-size: cover;
+  background-position: center;
+}
+
+.texture-gold {
+  background-image: url("/textures/marble-gold.svg");
+  background-size: cover;
+  background-position: center;
+}
+
+/* Shared smooth silhouettes (cubic-bezier only — no jagged polygons). */
+.marble-mask-wave,
+.marble-mask-edge,
+.marble-mask-fragment,
+.marble-mask-paper,
+.marble-mask-vein {
+  mask-repeat: no-repeat;
+  mask-size: 100% 100%;
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-size: 100% 100%;
+}
+
+.marble-mask-wave {
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'%3E%3Cpath d='M0 10 C 18 2 34 16 52 10 C 70 4 84 14 100 8 L 100 92 C 82 98 66 86 48 92 C 30 98 14 88 0 94 Z'/%3E%3C/svg%3E");
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'%3E%3Cpath d='M0 10 C 18 2 34 16 52 10 C 70 4 84 14 100 8 L 100 92 C 82 98 66 86 48 92 C 30 98 14 88 0 94 Z'/%3E%3C/svg%3E");
+}
+
+/* Gentler variant for large panels — reads as a stone slab, not a flag. */
+.marble-mask-panel {
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'%3E%3Cpath d='M0 7 C 16 3 32 11 50 8 C 68 5 82 10 100 6 L 100 93 C 84 97 68 92 50 95 C 32 98 16 94 0 96 Z'/%3E%3C/svg%3E");
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'%3E%3Cpath d='M0 7 C 16 3 32 11 50 8 C 68 5 82 10 100 6 L 100 93 C 84 97 68 92 50 95 C 32 98 16 94 0 96 Z'/%3E%3C/svg%3E");
+}
+
+.marble-mask-edge {
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'%3E%3Cpath d='M0 0 H100 V100 H0 C 46 90 24 70 38 52 C 52 34 30 14 0 0 Z'/%3E%3C/svg%3E");
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'%3E%3Cpath d='M0 0 H100 V100 H0 C 46 90 24 70 38 52 C 52 34 30 14 0 0 Z'/%3E%3C/svg%3E");
+}
+
+.marble-mask-fragment {
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'%3E%3Cpath d='M0 16 C 20 6 38 18 56 12 C 74 6 86 16 100 10 L 100 100 L 0 100 Z'/%3E%3C/svg%3E");
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'%3E%3Cpath d='M0 16 C 20 6 38 18 56 12 C 74 6 86 16 100 10 L 100 100 L 0 100 Z'/%3E%3C/svg%3E");
+}
+
+.marble-mask-paper {
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'%3E%3Cpath d='M0 22 C 10 14 20 26 32 18 C 44 10 54 24 68 16 C 80 8 90 20 100 14 L 100 100 L 0 100 Z'/%3E%3C/svg%3E");
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'%3E%3Cpath d='M0 22 C 10 14 20 26 32 18 C 44 10 54 24 68 16 C 80 8 90 20 100 14 L 100 100 L 0 100 Z'/%3E%3C/svg%3E");
+}
+
+.marble-mask-vein {
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'%3E%3Cpath d='M50 0 C 78 2 98 20 96 48 C 94 76 74 98 46 96 C 18 94 2 72 4 46 C 6 20 22 -2 50 0 Z'/%3E%3C/svg%3E");
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'%3E%3Cpath d='M50 0 C 78 2 98 20 96 48 C 94 76 74 98 46 96 C 18 94 2 72 4 46 C 6 20 22 -2 50 0 Z'/%3E%3C/svg%3E");
 }

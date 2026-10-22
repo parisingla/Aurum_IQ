@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { IBM_Plex_Mono, IBM_Plex_Sans, Newsreader } from "next/font/google";
+import { IBM_Plex_Mono, IBM_Plex_Sans, Playfair_Display } from "next/font/google";
 import "./globals.css";
 import { AppShell } from "@/components/layout/shell";
 import { ToastProvider } from "@/components/ui/toast";
@@ -18,11 +18,11 @@ const mono = IBM_Plex_Mono({
   display: "swap",
 });
 
-const display = Newsreader({
+const display = Playfair_Display({
   subsets: ["latin"],
-  weight: ["400", "500"],
+  weight: ["500", "600", "700"],
   style: ["normal", "italic"],
-  variable: "--font-newsreader",
+  variable: "--font-playfair",
   display: "swap",
 });
 
@@ -38,15 +38,19 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0a0a0c",
-  colorScheme: "dark",
+  themeColor: "#FFF8EC",
+  colorScheme: "light",
   width: "device-width",
   initialScale: 1,
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${sans.variable} ${mono.variable} ${display.variable}`}>
+    <html
+      lang="en"
+      suppressHydrationWarning
+      className={`${sans.variable} ${mono.variable} ${display.variable}`}
+    >
       <body className="min-h-screen">
         <a
           href="#page"

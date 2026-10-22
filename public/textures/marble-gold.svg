@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 900" width="1200" height="900">
+  <!--
+    AURUM IQ core marble artwork — "aerial ocean currents with gold-leaf veins".
+    Single shared geometry (identical seeds across the family); palettes vary
+    only in colour. Deep navy and teal carry the flow, gold is a mineral accent
+    concentrated in two clusters.
+  -->
+  <defs>
+    <linearGradient id="sea" x1="0" y1="0" x2="0.85" y2="1">
+      <stop offset="0" stop-color="#C78A16"/>
+      <stop offset="0.45" stop-color="#DDAF35"/>
+      <stop offset="0.8" stop-color="#B89533"/>
+      <stop offset="1" stop-color="#9A7B27"/>
+    </linearGradient>
+    <filter id="flow" x="-30%" y="-30%" width="160%" height="160%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.009 0.016" numOctaves="4" seed="7" result="n"/>
+      <feDisplacementMap in="SourceGraphic" in2="n" scale="140" xChannelSelector="R" yChannelSelector="G"/>
+    </filter>
+    <filter id="vein" x="-30%" y="-30%" width="160%" height="160%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.013 0.02" numOctaves="4" seed="7" result="v"/>
+      <feDisplacementMap in="SourceGraphic" in2="v" scale="110" xChannelSelector="R" yChannelSelector="B"/>
+    </filter>
+    <filter id="grain">
+      <feTurbulence type="fractalNoise" baseFrequency="0.8" numOctaves="2" seed="7" stitchTiles="stitch"/>
+      <feColorMatrix type="matrix" values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.05 0"/>
+    </filter>
+  </defs>
+
+  <rect width="1200" height="900" fill="url(#sea)"/>
+
+  <!-- current bands: one rhythm, flowing left to right -->
+  <g filter="url(#flow)" fill="none" stroke-linecap="round">
+    <path d="M-120 150 C 220 90 480 210 780 140 S 1240 90 1340 150" stroke="#F0CF77" stroke-width="86" opacity="0.38"/>
+    <path d="M-120 330 C 240 270 520 400 820 320 S 1260 280 1340 330" stroke="#7A5A0C" stroke-width="120" opacity="0.45"/>
+    <path d="M-120 520 C 260 460 540 590 840 510 S 1250 460 1340 520" stroke="#E6BE4D" stroke-width="96" opacity="0.30"/>
+    <path d="M-120 700 C 250 640 530 770 830 690 S 1240 650 1340 700" stroke="#6E5007" stroke-width="130" opacity="0.40"/>
+    <path d="M-120 845 C 240 795 520 900 820 830 S 1250 800 1340 845" stroke="#F6E09A" stroke-width="80" opacity="0.30"/>
+  </g>
+
+  <!-- gold-leaf mineral veins, clustered: lower-left and upper-right -->
+  <g filter="url(#vein)" fill="none" stroke-linecap="round">
+    <path d="M60 640 C 160 600 240 690 340 650 S 480 610 540 650" stroke="#0B2545" stroke-width="12" opacity="0.9"/>
+    <path d="M90 700 C 190 660 260 740 370 700 S 500 670 560 700" stroke="#087CA5" stroke-width="7" opacity="0.8"/>
+    <path d="M40 585 C 130 560 200 620 300 590" stroke="#052B45" stroke-width="4.5" opacity="0.7"/>
+    <ellipse cx="210" cy="655" rx="64" ry="30" fill="#0B2545" opacity="0.5"/>
+    <path d="M760 300 C 850 260 930 340 1030 300 S 1160 270 1200 300" stroke="#0B2545" stroke-width="10" opacity="0.85"/>
+    <path d="M790 355 C 880 320 960 385 1060 350 S 1150 330 1200 350" stroke="#087CA5" stroke-width="6" opacity="0.75"/>
+    <ellipse cx="905" cy="315" rx="52" ry="24" fill="#052B45" opacity="0.42"/>
+  </g>
+
+  <!-- soft sheen so the surface reads as polished stone -->
+  <rect width="1200" height="900" fill="url(#sheen)" opacity="0.5"/>
+  <linearGradient id="sheen" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.10"/>
+    <stop offset="0.45" stop-color="#FFFFFF" stop-opacity="0.02"/>
+    <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+  </linearGradient>
+
+  <rect width="1200" height="900" filter="url(#grain)"/>
+</svg>
