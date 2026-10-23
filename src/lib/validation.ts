@@ -112,6 +112,8 @@ export const dataStatusSchema: z.ZodType<DataStatus> = z.object({
   checks: z.array(trustCheckSchema),
   ingestPath: z.string(),
   nextExpected: isoDate,
+  fromDate: isoDate.optional(),
+  toDate: isoDate.optional(),
 });
 
 export const contractSchema: z.ZodType<Contract> = z.object({

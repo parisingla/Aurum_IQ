@@ -9,6 +9,7 @@ import type {
   WatchRow,
 } from "@/lib/types";
 import { productSpec } from "@/lib/products";
+import { recordRun } from "@/lib/history";
 import { z } from "zod";
 import { getAlerts } from "@/lib/mock/alerts";
 import { defaultBacktestParams, getBacktest, runBacktest } from "@/lib/mock/backtest";
@@ -214,11 +215,22 @@ export async function fetchAlerts(): Promise<Alert[]> {
 
 export async function createBacktest(raw: BacktestParamsInput): Promise<BacktestResult> {
   const params: BacktestParams = raw;
-  if (isLiveApi) {
-    return postJson("/api/backtests", params, backtestResultSchema);
-  }
-  await wait(DEMO_LATENCY_MS * 2);
-  return runBacktest(params);
+  const result = isLiveApi
+    ? await postJson("/api/backtests", params, backtestResultSchema)
+    : await (async () => {
+        await wait(DEMO_LATENCY_MS * 2);
+        return runBacktest(params);
+      })();
+
+  recordRun({
+    id: result.id,
+    kind: "backtest",
+    label: `${params.legA} vs ${params.legB}`,
+    instruments: `${params.legA} · ${params.legB}`,
+    status: "complete",
+    href: "/backtesting",
+  });
+  return result;
 }
 
 export async function fetchBacktest(id: string): Promise<BacktestResult> {

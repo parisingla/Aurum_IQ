@@ -88,6 +88,9 @@ export interface DataStatus {
   checks: TrustCheck[];
   ingestPath: string;
   nextExpected: string;
+  /** First and last session in the working dataset (live API only). */
+  fromDate?: string;
+  toDate?: string;
 }
 
 export type TimeRange = "1M" | "3M" | "6M" | "1Y" | "ALL";
