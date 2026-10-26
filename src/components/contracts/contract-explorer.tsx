@@ -86,7 +86,7 @@ export function ContractExplorer() {
 
   return (
     <PageShell
-      title="Contracts"
+      title="Contract Explorer"
       subtitle="Every live row across the five gold products: settle, fine-gold restatement, liquidity and staleness. Click a row for the full record and the tender window."
       actions={<Badge tone="gold">DEMO FIXTURES</Badge>}
     >

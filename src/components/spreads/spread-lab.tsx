@@ -92,7 +92,7 @@ export function SpreadLab() {
 
   return (
     <PageShell
-      title="Spreads"
+      title="Spread Lab"
       subtitle="Pick two products and the terminal matches their expiries, strips purity and carry, then shows what is left — with the arithmetic written out underneath."
       actions={<Badge tone="gold">DEMO DATA</Badge>}
     >

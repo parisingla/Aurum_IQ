@@ -12,7 +12,7 @@ export const metadata = {
 export default function ResearchPage() {
   return (
     <PageShell
-      title="Research"
+      title="Methodology & Data"
       subtitle="What this terminal computes, what it charges itself, what it deliberately refuses to do — and which facts in the source material are still contested."
       actions={<Badge tone="outline">READ-ONLY BUILD</Badge>}
     >
