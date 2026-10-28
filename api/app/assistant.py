@@ -38,6 +38,60 @@ class AssistantEngine:
         status = self._status()
         return status["ingestPath"]
 
+    def grounded_brief(self) -> dict:
+        """Compact, all-computed fact pack for the optional LLM layer.
+
+        Everything comes from the same functions the dashboard renders, so an
+        LLM narrative can only rephrase what the UI already shows.
+        """
+        status = self._status()
+        pairs = []
+        for leg_a, leg_b in [("GOLDM", "GOLDPETAL"), ("GOLD", "GOLDM"), ("GOLDM", "GOLDGUINEA"), ("GOLDTEN", "GOLDPETAL")]:
+            series = self._spread(leg_a, leg_b, "6M")
+            if series:
+                summary = series["summary"]
+                pairs.append(
+                    {
+                        "pair": f"{leg_a}-{leg_b}",
+                        "residualBps": round(summary["residualBps"], 1),
+                        "zScore": round(summary["zscore"], 2),
+                        "percentile": round(summary["percentile"], 0),
+                        "roundTripCostBps": round(summary["roundTripCostBps"], 1),
+                        "halfLifeDays": round(summary["halfLifeDays"], 1),
+                        "observations": summary["observations"],
+                    }
+                )
+        contracts = {}
+        for product_id in ("GOLD", "GOLDM", "GOLDTEN", "GOLDGUINEA", "GOLDPETAL"):
+            fine = self._front_fine(product_id)
+            if fine is not None:
+                contracts[product_id] = {"frontFinePerGram": round(fine, 2)}
+        runs = self._backtests()
+        latest_backtest = None
+        if runs:
+            last = runs[-1]
+            latest_backtest = {
+                "pair": f"{last['params']['legA']}-{last['params']['legB']}",
+                **{key: last["metrics"][key] for key in ("verdict", "trades", "sharpeOos", "dsr", "pbo", "netPnlBps", "roundTripCostBps")},
+            }
+        return {
+            "dataset": {
+                "source": status["source"],
+                "asOf": status["asOf"],
+                "rows": status["rows"],
+                "trustScore": status["trustScore"],
+                "description": status["ingestPath"],
+            },
+            "qualityChecks": [
+                {"label": check["label"], "passed": check["passed"], "detail": check["detail"]}
+                for check in status["checks"]
+            ],
+            "spreadPairs": pairs,
+            "frontContracts": contracts,
+            "latestBacktest": latest_backtest,
+        }
+
+
     def answer(self, question: str) -> dict:
         text = question.lower()
         status = self._status()

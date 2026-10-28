@@ -8,6 +8,7 @@ HTTPException(422/404/409) with plain-English detail messages.
 from __future__ import annotations
 
 import hashlib
+import json
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, UploadFile
@@ -20,6 +21,7 @@ from app.engine import term as term_engine
 from app.engine.backtest import run_backtest
 from app.engine.ingest import date_bounds, file_digest, parse_upload
 from app.engine.relative_value import build_spread_points, get_spread_series
+from app.llm import llm_enabled, narrate
 from app.engine.simulate import AS_OF
 from app.engine.store import RAW_DIR, STORE, UploadRecord
 from app.engine.status import build_data_status, build_watchlist
@@ -362,4 +364,15 @@ def assistant_query(payload: dict[str, Any]) -> dict[str, Any]:
     question = str(payload.get("question", "")).strip()
     if not question:
         raise HTTPException(status_code=422, detail="question is required.")
-    return assistant.answer(question)
+
+    use_llm = bool(payload.get("useLlm"))
+    if use_llm and llm_enabled():
+        brief = assistant.grounded_brief()
+        user_brief = f"{json.dumps(brief, indent=1, default=str)}\n\nQuestion: {question}"
+        narrative = narrate(user_brief)
+        if narrative:
+            base = assistant.answer(question)  # citations + dataNotes stay engine-owned
+            return {**base, "answer": narrative, "confidence": 0.75, "mode": "llm"}
+        # LLM unreachable / out of credits → deterministic template below
+
+    return {**assistant.answer(question), "mode": "template"}
