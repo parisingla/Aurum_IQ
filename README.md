@@ -68,91 +68,80 @@ Leg A and leg B must be different contracts.
 
 ## Project structure
 
-One repository deploys as **one Vercel project** with two services (root `vercel.json`):
+One repository deploys as **one Vercel project**: Next.js at the root, the FastAPI engine mounted as Python serverless functions from `api/`.
 
 ```
-frontend/                # Next.js service (public)
-├── src/
-│   ├── app/             # Routes: overview, contracts, spreads, signals, research
-│   │   └── api/backend/ # Same-origin bridge to the FastAPI service
-│   ├── components/
-│   │   ├── charts/      # Spread, term structure, equity, z-gauge, sparkline…
-│   │   ├── contracts/   # Contract explorer
-│   │   ├── spreads/     # Spread lab, leg cards, calculation explainer
-│   │   ├── signals/     # Alert cards, backtest panel
-│   │   ├── overview/    # Stat tiles, watchlist
-│   │   ├── layout/      # Shell, side nav, top bar, footer
-│   │   └── ui/          # Primitives (button, panel, modal, toast…)
-│   └── lib/
-│       ├── products.ts  # Contract specifications
-│       ├── analytics.ts # Spread explanation & decomposition
-│       ├── validation.ts# Zod schemas
-│       ├── api/         # Single data-access layer (demo ↔ live)
-│       └── mock/        # Seeded, deterministic demo market, alerts, backtests
-└── public/
-backend/                 # FastAPI service (private; talks to the frontend via BACKEND_URL)
-├── app/                 # FastAPI app: routes, engine, assistant, methodology
-├── data/                # Seed datasets.json + raw uploads
-├── tests/               # pytest suite
-└── requirements.txt
-research_notes/          # Source research (dataset, specs, methods, market, stack)
-reports/                 # Consolidated deep-research report
-vercel.json              # Services config: both apps in one deployment
+src/                      # Next.js app (public)
+├── app/                  # Routes: overview, contracts, spreads, signals, research
+├── components/
+│   ├── charts/           # Spread, term structure, equity, z-gauge, sparkline…
+│   ├── contracts/        # Contract explorer
+│   ├── spreads/          # Spread lab, leg cards, calculation explainer
+│   ├── signals/          # Alert cards, backtest panel
+│   ├── overview/         # Stat tiles, watchlist
+│   ├── layout/           # Shell, side nav, top bar, footer
+│   └── ui/               # Primitives (button, panel, modal, toast…)
+└── lib/
+    ├── products.ts       # Contract specifications
+    ├── analytics.ts      # Spread explanation & decomposition
+    ├── validation.ts     # Zod schemas
+    ├── api/              # Single data-access layer (demo ↔ live)
+    └── mock/             # Seeded, deterministic demo market, alerts, backtests
+public/
+api/                      # FastAPI engine → Vercel Python serverless functions
+├── index.py              # Vercel entrypoint (create_app)
+├── app/                  # Routes, engine, assistant, methodology
+└── data/                 # Seed datasets.json + raw uploads
+tests/                    # pytest suite (engine + API)
+scripts/run_backend.py    # local uvicorn entry for the engine
+research_notes/           # Source research (dataset, specs, methods, market, stack)
+reports/                  # Consolidated deep-research report
+vercel.json               # minimal Next.js config
 ```
+
+In development the rewrites in `next.config.ts` proxy same-origin `/api/*` calls to the engine on `127.0.0.1:8000`; in production they land on the bundled serverless function. No CORS setup is needed anywhere.
 
 ## Getting started
 
-Requires Node.js 22 or later and Python 3.12+.
-
-### With the Vercel CLI (recommended — runs both services)
+Requires Node.js 22 or later and Python 3.12+ (`.python-version` pins 3.12 for Vercel).
 
 ```bash
-npm install --prefix frontend
-pip install -r backend/requirements.txt   # or uv/pip in a venv
-npm i -g vercel
-vercel link     # first time; then: vercel project update --framework services
-vercel dev -L   # one process serves Next.js + FastAPI, binding configured
-```
+npm install
+python3 -m venv api/.venv && api/.venv/bin/pip install -r requirements.txt
 
-### Classic two-terminal setup
+# terminal 1 — engine on http://127.0.0.1:8000
+api/.venv/bin/python scripts/run_backend.py
 
-```bash
-# terminal 1 — frontend on http://localhost:3000 (demo data by default)
-npm install --prefix frontend
-npm run dev --prefix frontend
-
-# terminal 2 — backend engine on http://localhost:8000
-pip install -r backend/requirements.txt
-python backend/run.py
+# terminal 2 — app on http://localhost:3000 (live data through the rewrite)
+npm run dev
 ```
 
 | Script | What it does |
 |---|---|
-| `npm run dev` (in `frontend/`) | Start the dev server |
+| `npm run dev` | Next.js dev server; proxies `/api/*` to the engine |
+| `npm run dev:backend` | Serve the FastAPI engine on `PORT` (default 8000) |
 | `npm run build` / `npm start` | Production build and serve |
-| `npm run lint` | Run ESLint |
-| `npm run typecheck` | Run `tsc --noEmit` |
-| `python backend/run.py` | Serve the FastAPI engine on `PORT` (default 8000) |
-| `pytest` (in `backend/`) | Engine and API tests |
+| `npm run lint` / `npm run typecheck` | ESLint / `tsc --noEmit` |
+| `npm run test:py` | Engine and API tests (`api/.venv/bin/python -m pytest tests -q`) |
 
 ## Deploy on Vercel
 
-Both apps deploy together from the repository root — the Next.js frontend publicly, the FastAPI engine as a private internal service the frontend reaches through `BACKEND_URL` (the same-origin bridge route keeps the browser to one origin, so no CORS setup is needed).
+One import, one project. The Next.js app is the deployment; the engine rides along as Python serverless functions from `api/` (Vercel detects `api/index.py` + root `requirements.txt` + `.python-version`).
 
 1. Push the repo to GitHub, then import it at [vercel.com/new](https://vercel.com/new).
-2. Vercel reads the root `vercel.json`; keep **Root Directory** at the repository root and the **Services** framework preset.
-3. In Project → Settings → Environment Variables, add `NEXT_PUBLIC_API_BASE_URL = /api/backend` (Production, Preview and Development). This switches every page from demo fixtures to the live engine.
-4. Deploy. Frontend and backend ship in every production and preview deployment.
+2. Keep **Root Directory** at the repository root; the framework preset is Next.js (root `vercel.json`).
+3. In Project → Settings → Environment Variables, add `NEXT_PUBLIC_API_BASE_URL = same-origin` (Production, Preview and Development). This switches every page from demo fixtures to the live engine.
+4. Deploy. Every preview deployment gets the same treatment.
 
 For the CLI instead: `vercel link`, then `vercel --prod` from the repository root.
 
 ## Data modes
 
-All frontend data goes through `frontend/src/lib/api/index.ts`.
+All frontend data goes through `src/lib/api/index.ts`.
 
 - **Demo** (default): leave `NEXT_PUBLIC_API_BASE_URL` unset. Seeded fixtures answer each call after `NEXT_PUBLIC_DEMO_LATENCY_MS` (default 450 ms), so loading and error states run as real code paths.
-- **Live — same origin on Vercel:** set `NEXT_PUBLIC_API_BASE_URL=/api/backend`. Calls go browser → Next.js bridge route → FastAPI service (the binding supplies `BACKEND_URL` per deployment). Each response is validated with Zod.
-- **Live — external backend:** set `NEXT_PUBLIC_API_BASE_URL` to a full URL (e.g. `http://127.0.0.1:8000` while developing against `backend/run.py`).
+- **Live — same origin (recommended):** set `NEXT_PUBLIC_API_BASE_URL=same-origin`. Calls go browser → same-origin `/api/*` → rewrites → FastAPI engine (locally `127.0.0.1:8000`, on Vercel the serverless function). Each response is validated with Zod.
+- **Live — external backend:** set `NEXT_PUBLIC_API_BASE_URL` to a full URL (e.g. `http://127.0.0.1:8000`).
 
 Routes served by the backend:
 

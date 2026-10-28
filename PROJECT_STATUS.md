@@ -207,7 +207,7 @@
 
 ```
 Commodity/
-├── backend/                    # FastAPI Python backend
+├── api/                        # FastAPI Python engine (serverless on Vercel)
 │   ├── app/
 │   │   ├── engine/            # Core calculation engines
 │   │   │   ├── alerts.py      # Signal gating logic
