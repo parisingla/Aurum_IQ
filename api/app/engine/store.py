@@ -290,11 +290,16 @@ class DatasetStore:
             return any(record.sha256 == digest for record in self._records)
 
     def clear(self) -> None:
-        """Forget the working dataset — the store reports empty until an upload."""
+        """Forget everything — dataset and upload history — until an upload.
+
+        Records are forgotten too, so re-uploading the very same CSV after a
+        reset is accepted instead of hitting the sha256 dedup guard.
+        """
         with self._lock:
             self._active = None
             self._mode = "empty"
             self._source_label = ""
+            self._records = []
         self._save_state()
 
 
