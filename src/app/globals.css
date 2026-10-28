@@ -19,8 +19,8 @@
   --color-light-sand: #F2E7D5;
 
   /* Text colors */
-  --color-primary-text: #17243A;
-  --color-secondary-text: #657387;
+  --color-primary-text: #101B2E;
+  --color-secondary-text: #45536B;
   --color-border: #E7E1D5;
 
   /* Status colors */
@@ -70,10 +70,11 @@
   --color-line: #E7E1D5;
   --color-line-strong: #D4CEC2;
 
-  /* type on light */
-  --color-ink: #17243A;
-  --color-charcoal: #657387;
-  --color-stone: #8A959F;
+  /* type on light — darkened for legibility on ivory */
+  --color-ink: #101B2E;
+  --color-charcoal: #45536B;
+  --color-stone: #5A6779;
+  --color-dim: var(--color-stone); /* used by chart axis ticks + muted series */
 
   /* Legacy mappings for compatibility */
   --color-up: #217A58;
