@@ -135,6 +135,12 @@ One import, one project. The Next.js app is the deployment; the engine rides alo
 
 For the CLI instead: `vercel link`, then `vercel --prod` from the repository root.
 
+### Make uploads persist (serverless storage)
+
+Vercel serverless functions keep **no state between requests** and mount a read-only filesystem, so an uploaded CSV would evaporate and the raw-file write would fail. The engine solves this with an optional Redis mirror: when `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` are set, every upload is persisted and restored by each cold instance. Without them it runs in-memory (local dev, unchanged).
+
+To enable on Vercel: Project → **Storage** → **Upstash Redis** → create (free tier is plenty) — the integration injects both variables automatically. `vercel.json` already raises the upload function's timeout to 60 s for the 16k-row parse.
+
 ## Data modes
 
 All frontend data goes through `src/lib/api/index.ts`.
