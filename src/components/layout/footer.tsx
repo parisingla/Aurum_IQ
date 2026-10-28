@@ -63,7 +63,11 @@ export function SiteFooter({ onRefresh }: { onRefresh: () => void }) {
               edge.
             </p>
             <div className="mt-3.5 flex flex-wrap items-center gap-2">
-              <Badge tone="warning">DEMO DATA</Badge>
+              {DATA_MODE === "api" ? (
+                <Badge tone="info">LIVE ENGINE</Badge>
+              ) : (
+                <Badge tone="warning">DEMO DATA</Badge>
+              )}
               <Badge tone="outline">FIXTURES {formatDate(AS_OF)}</Badge>
               <Badge tone="outline">
                 {DATA_MODE === "api" ? "HTTP API MODE" : "LOCAL FIXTURES"}
