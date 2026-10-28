@@ -1,19 +1,22 @@
-"""Holds the working dataset: the seed market, or the latest valid upload.
+"""Holds the working dataset: a bundled real bhavcopy, an upload, or the seed.
 
-`mode` flips demo → api only after a successful upload — the data-quality
-badge in the UI must tell the truth about which market the engine serves.
+`mode` flips demo → api whenever real MCX settlements are being served — the
+bundled seed bhavcopy (api/data/seed/) or a user upload — and only the
+synthetic fallback market reports "demo". The data-quality badge in the UI
+must tell the truth about which market the engine serves.
 
 Serverless note: Vercel Python functions keep no state between invocations
 and mount a read-only filesystem. When Upstash Redis credentials are present
 (the Vercel Storage → Upstash integration injects UPSTASH_REDIS_REST_URL and
 UPSTASH_REDIS_REST_TOKEN), every state change is mirrored to Redis and a
-cold instance restores it before falling back to the seed. Without
-credentials the store behaves exactly as before — in-memory, for local dev —
-so nothing changes for `scripts/run_backend.py`.
+cold instance restores it before falling back to the bundled bhavcopy.
+Without credentials the store behaves exactly as before — in-memory, for
+local dev — so nothing changes for `scripts/run_backend.py`.
 """
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import threading
@@ -25,12 +28,56 @@ from pathlib import Path
 import pandas as pd
 
 from app.config import SETTINGS
+from app.engine.ingest import date_bounds, parse_upload
 from app.engine.simulate import build_seed_frame
 
 RAW_DIR = Path(SETTINGS.data_dir) / "raw"
 REGISTRY_PATH = Path(SETTINGS.data_dir) / "datasets.json"
 
 SEED_LABEL = "Synthetic market, seeded to mirror demo parameters"
+
+BUNDLED_SEED_PATH = Path(SETTINGS.data_dir) / "seed" / "BhavCopyDateWise_27102026.csv"
+_bundled_cache: tuple["pd.DataFrame", str, "UploadRecord"] | None = None
+_bundled_tried = False
+
+
+def bundled_seed() -> tuple["pd.DataFrame", str, "UploadRecord"] | None:
+    """The repo's bundled real MCX bhavcopy, parsed once per process.
+
+    Shipping a real settlement file lets a cold serverless instance (Vercel)
+    serve the actual market instead of the synthetic seed before any upload —
+    the app answers with real prices from its very first request. Returns
+    None when the file is missing or fails validation; the synthetic seed
+    stays the last resort.
+    """
+    global _bundled_cache, _bundled_tried
+    if not _bundled_tried:
+        _bundled_tried = True
+        try:
+            data = BUNDLED_SEED_PATH.read_bytes()
+            report = parse_upload(data)
+            if report.ok and report.frame is not None:
+                bounds = date_bounds(report.frame)
+                label = (
+                    f"Bundled {BUNDLED_SEED_PATH.name} "
+                    f"({len(report.frame)} rows, {bounds[0]}→{bounds[1]})"
+                )
+                record = UploadRecord(
+                    dataset_id="ds-bundled-seed",
+                    filename=BUNDLED_SEED_PATH.name,
+                    sha256=hashlib.sha256(data).hexdigest(),
+                    mode="api",
+                    rows=int(len(report.frame)),
+                    from_date=bounds[0],
+                    to_date=bounds[1],
+                    symbols=list(report.symbols),
+                    errors=len(report.errors),
+                    warnings=len(report.warnings),
+                )
+                _bundled_cache = (report.frame, label, record)
+        except Exception:
+            pass
+    return _bundled_cache
 
 # The float columns lose their dtype in a JSON round-trip when a value is
 # integral; re-assert them on restore.
@@ -231,7 +278,16 @@ class DatasetStore:
         with self._lock:
             self._ensure_restored()
             if self._active is None:
-                self._active = build_seed_frame()
+                bundled = bundled_seed()
+                if bundled is not None:
+                    frame, label, record = bundled
+                    self._active = frame
+                    self._mode = "api"  # real settlements — never call them demo
+                    self._source_label = label
+                    if record.dataset_id not in {r.dataset_id for r in self._records}:
+                        self._records.append(record)
+                else:
+                    self._active = build_seed_frame()
             return self._active
 
     @property

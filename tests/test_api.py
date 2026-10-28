@@ -1,4 +1,10 @@
-"""End-to-end API tests: every documented route answers with zod-shaped JSON."""
+"""End-to-end API tests: every documented route answers with zod-shaped JSON.
+
+The engine's default dataset is the bundled real MCX bhavcopy
+(api/data/seed/BhavCopyDateWise_27102026.csv) — served as `api` mode from a
+cold start, before any upload. Only when that file is missing does the
+synthetic seed (mode "demo") take over.
+"""
 
 from __future__ import annotations
 
@@ -22,16 +28,16 @@ def test_health(client: TestClient) -> None:
     assert response.status_code == 200
     payload = response.json()
     assert payload["ok"] is True
-    assert payload["mode"] == "demo"
+    assert payload["mode"] == "api"  # bundled real bhavcopy, not the synthetic seed
 
 
 def test_data_status(client: TestClient) -> None:
     payload = client.get("/api/data/status").json()
-    assert payload["source"] == "demo"
+    assert payload["source"] == "api"
     assert 0 <= payload["trustScore"] <= 100
     assert len(payload["checks"]) == 7
-    # Checks are structural and honest, not required to all pass: the seeded
-    # market intentionally carries cross-contract residuals, so the
+    # Checks are structural and honest, not required to all pass: the real 27
+    # Oct 2026 bhavcopy carries cross-contract residuals, so the
     # ₹/g-agreement check is allowed to fail while the score reports it.
     for check in payload["checks"]:
         assert set(check) == {"label", "passed", "detail"}
@@ -122,7 +128,7 @@ def test_backtest_lifecycle(client: TestClient) -> None:
     payload = result.json()
     assert payload["status"] == "complete"
     assert payload["metrics"]["verdict"] in {"no edge", "inconclusive", "robust"}
-    assert "DEMO DATA" in " ".join(payload["limitations"])
+    assert "UPLOAD DATA" in " ".join(payload["limitations"])
     fetched = client.get(f"/api/backtests/{payload['id']}")
     assert fetched.status_code == 200
     assert fetched.json()["id"] == payload["id"]
@@ -202,4 +208,5 @@ def test_upload_round_trip_flips_mode_to_api(client: TestClient) -> None:
 
     reset = client.post("/api/datasets/reset")
     assert reset.status_code == 200
-    assert client.get("/api/data/status").json()["source"] == "demo"
+    # Reset re-activates the bundled real bhavcopy, not the synthetic seed.
+    assert client.get("/api/data/status").json()["source"] == "api"

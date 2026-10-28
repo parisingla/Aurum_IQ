@@ -38,5 +38,6 @@ __pycache__/
 *.pyc
 .pytest_cache/
 
-# runtime uploads (tracked fixture bhavcopy-mini.csv stays tracked)
+# runtime uploads (the bundled seed bhavcopy in api/data/seed/ stays tracked)
 api/data/raw/
+api/data/datasets.json

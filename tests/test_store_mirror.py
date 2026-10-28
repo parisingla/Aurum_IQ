@@ -81,7 +81,9 @@ def test_upload_survives_a_cold_instance(monkeypatch, tmp_path) -> None:
     restored = cold.frame
     assert cold.mode == "api"
     assert cold.source_label == "Uploaded bhavcopy-mini.csv"
-    assert [r.dataset_id for r in cold.records] == [record.dataset_id]
+    # The mirror-restored registry plus the bundled-seed record (a cold store
+    # re-activates the bundled bhavcopy whenever no snapshot covers the frame).
+    assert record.dataset_id in [r.dataset_id for r in cold.records]
     pd.testing.assert_frame_equal(restored, warm.frame)
 
 
@@ -94,8 +96,11 @@ def test_reset_clears_the_mirror(monkeypatch, tmp_path) -> None:
     store.reset_to_seed()
     assert not mirror.blobs
 
+    # Reset means "no active upload" — a cold store falls back to the bundled
+    # real bhavcopy (mode api), never straight to the synthetic seed.
     cold = _isolated_store(mirror, monkeypatch, tmp_path)
-    assert cold.mode == "demo"
+    assert cold.mode == "api"
+    assert "Bundled" in cold.source_label
 
 
 def test_record_from_dict_accepts_registry_format() -> None:
