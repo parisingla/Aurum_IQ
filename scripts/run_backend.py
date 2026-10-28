@@ -1,13 +1,16 @@
-"""Entry point for the AURUM IQ backend.
+"""Entry point for local development of the AURUM IQ engine.
 
-    python run.py          # serves app.main:app on PORT (default 8000)
+    python scripts/run_backend.py   # serves app.main:app on PORT (default 8000)
 
 Env: HOST, PORT, CORS_ORIGINS (comma-separated), DEFAULT_CARRY_PCT,
 BENCHMARK_RATE_PCT, BROKERAGE_FLAT_INR, BROKERAGE_PCT, STATUTORY_BPS.
+
+In dev, `npm run dev` proxies same-origin /api/* calls to this engine.
 """
 
 import os
 import sys
+from pathlib import Path
 
 if sys.platform == "win32":
     for stream in (sys.stdout, sys.stderr):
@@ -15,6 +18,8 @@ if sys.platform == "win32":
             stream.reconfigure(encoding="utf-8", errors="replace")
         except Exception:
             pass
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "api"))
 
 import uvicorn
 

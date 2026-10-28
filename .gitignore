@@ -3,9 +3,8 @@ node_modules/
 .pnp
 .pnp.*
 
-# next.js (frontend service)
-frontend/.next/
-frontend/out/
+# next.js
+.next/
 out/
 build/
 
@@ -32,10 +31,12 @@ next-env.d.ts
 # vercel
 .vercel/
 
-# python backend service
+# python engine
 .venv/
 venv/
 __pycache__/
 *.pyc
 .pytest_cache/
-!backend/.env.example
+
+# runtime uploads (tracked fixture bhavcopy-mini.csv stays tracked)
+api/data/raw/

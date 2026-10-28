@@ -5,10 +5,12 @@
   "description": "Aurum IQ — explainable relative-value intelligence for MCX gold futures (demo frontend)",
   "scripts": {
     "dev": "next dev",
+    "dev:backend": "python scripts/run_backend.py",
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:py": "python -m pytest tests -q"
   },
   "dependencies": {
     "framer-motion": "^14.4.0",

@@ -45,10 +45,17 @@ import {
  * brief and validate the payload with Zod before it reaches a component.
  */
 
-const API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL ?? "").replace(/\/+$/, "");
+// "same-origin" (or "/api") → every path is relative to this app; the Next.js
+// rewrites in next.config.ts proxy /api/* to the FastAPI engine (dev:
+// 127.0.0.1:8000 via scripts/run_backend.py, prod: the api/ serverless
+// function). An absolute URL calls an external backend; empty means demo.
+const RAW_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL ?? "")
+  .trim()
+  .replace(/\/+$/, "");
+const API_BASE = RAW_BASE === "same-origin" || RAW_BASE === "/api" ? "" : RAW_BASE;
 const DEMO_LATENCY_MS = Number(process.env.NEXT_PUBLIC_DEMO_LATENCY_MS ?? 450);
 
-export const isLiveApi = API_BASE.length > 0;
+export const isLiveApi = RAW_BASE.length > 0;
 export const DATA_MODE: "demo" | "api" = isLiveApi ? "api" : "demo";
 
 export class ApiError extends Error {
