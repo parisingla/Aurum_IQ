@@ -10,10 +10,11 @@ from __future__ import annotations
 import json
 
 import pandas as pd
+import pytest
 
 from app.engine import store as store_module
 from app.engine.ingest import parse_upload
-from app.engine.store import RAW_DIR, DatasetStore, UploadRecord, UpstashMirror
+from app.engine.store import RAW_DIR, DatasetStore, EmptyDatasetError, UploadRecord, UpstashMirror
 
 MINI_UPLOAD = RAW_DIR.parent / "raw" / "3f9c19b1c7a89d9b-bhavcopy-mini.csv"
 
@@ -90,17 +91,17 @@ def test_upload_survives_a_cold_instance(monkeypatch, tmp_path) -> None:
 def test_reset_clears_the_mirror(monkeypatch, tmp_path) -> None:
     mirror = FakeMirror()
     store = _isolated_store(mirror, monkeypatch, tmp_path)
-    store.set_active(store.frame, "api", "Uploaded something.csv")
+    frame = parse_upload(MINI_UPLOAD.read_bytes()).frame
+    assert frame is not None
+    store.set_active(frame, "api", "Uploaded something.csv")
     assert mirror.blobs
 
-    store.reset_to_seed()
-    assert not mirror.blobs
-
-    # Reset means "no active upload" — a cold store falls back to the bundled
-    # real bhavcopy (mode api), never straight to the synthetic seed.
+    store.clear()  # the empty state is mirrored too — a cold instance stays empty
     cold = _isolated_store(mirror, monkeypatch, tmp_path)
-    assert cold.mode == "api"
-    assert "Bundled" in cold.source_label
+    assert cold.mode == "empty"
+    assert cold.source_label == "No dataset loaded"
+    with pytest.raises(EmptyDatasetError):
+        _ = cold.frame
 
 
 def test_record_from_dict_accepts_registry_format() -> None:
@@ -125,6 +126,8 @@ def test_record_from_dict_accepts_registry_format() -> None:
 
 def test_disabled_mirror_degrades_to_memory() -> None:
     store = DatasetStore(mirror=UpstashMirror())  # no env vars → disabled
-    store.set_active(store.frame, "api", "Uploaded something.csv")
+    frame = parse_upload(MINI_UPLOAD.read_bytes()).frame
+    assert frame is not None
+    store.set_active(frame, "api", "Uploaded something.csv")
     assert store.mode == "api"  # in-memory state still works
     assert store.source_label == "Uploaded something.csv"

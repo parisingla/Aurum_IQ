@@ -22,7 +22,8 @@ DOCS: list[dict[str, str]] = [
             "the manual CSV upload as the *first-class* intake path: `POST /api/datasets/upload` validates "
             "every row (dates in several formats, duplicate (date, symbol, expiry) keys dropped, settlement "
             "> 0, OI ≥ 0, expiry ≥ trade date, gold-family symbols only), reports every fix and rejection, "
-            "and only flips `source` from demo to api after a clean parse. Byte-identical files are rejected "
+            "and flips `source` to api only after a clean parse — before any upload the engine reports "
+            "`source: \"empty\"` and every data route answers 503. Byte-identical files are rejected "
             "by sha256 so a re-served stale file cannot fabricate a second day.\n\n"
             "Files land raw → clean with `source_sha256` carried per dataset, and the registry lives in "
             "`backend/data/datasets.json`."
@@ -134,8 +135,9 @@ DOCS: list[dict[str, str]] = [
         "kind": "limitation",
         "title": "Limitations — what this build does not claim",
         "body": (
-            "- **Dataset**: in demo mode every settlement is synthetic (seeded), labelled DEMO DATA "
-            "everywhere it appears. In api mode, rows are whatever the last successful upload contained.\n"
+            "- **Dataset**: there is no built-in market — the engine answers from the last uploaded CSV "
+            "only, and reports `source: \"empty\"` with 503s until one arrives. Nothing is synthesised "
+            "or preloaded at runtime.\n"
             "- **Daily settlements only**: no bid-ask, no intraday, no partial fills; a 30-minute VWAP print "
             "in a thin contract is not an executable price.\n"
             "- **Tender window**: sources give 3 vs 5 days for compulsory-delivery cut-offs (MCX circular "

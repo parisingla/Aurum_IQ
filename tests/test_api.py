@@ -1,9 +1,10 @@
 """End-to-end API tests: every documented route answers with zod-shaped JSON.
 
-The engine's default dataset is the bundled real MCX bhavcopy
-(api/data/seed/BhavCopyDateWise_27102026.csv) — served as `api` mode from a
-cold start, before any upload. Only when that file is missing does the
-synthetic seed (mode "demo") take over.
+The engine ships with NO market data — a fresh store is "empty" and data
+routes answer 503 until a CSV is uploaded. The module fixture uploads the
+deterministic synthetic frame as a CSV (test data, never served to users)
+so the analytics routes have the multi-session market these assertions
+were written against.
 """
 
 from __future__ import annotations
@@ -11,6 +12,8 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
+from app.engine.ingest import parse_upload
+from app.engine.simulate import build_seed_frame
 from app.engine.store import STORE
 from app.main import create_app
 
@@ -19,8 +22,37 @@ from app.main import create_app
 def client() -> TestClient:
     app = create_app()
     with TestClient(app) as test_client:
+        frame = build_seed_frame()
+        csv = frame.to_csv(index=False).encode("utf-8")
+        response = test_client.post(
+            "/api/datasets/upload",
+            files={"file": ("seed-frame.csv", csv, "text/csv")},
+        )
+        assert response.status_code == 200, response.text
         yield test_client
-    STORE.reset_to_seed()
+    STORE.clear()
+
+
+def test_empty_state_before_any_upload() -> None:
+    """A cold engine with no upload reports source "empty" and 503s for data."""
+    try:
+        STORE.clear()
+        app = create_app()
+        with TestClient(app) as fresh:
+            status = fresh.get("/api/data/status").json()
+            assert status["source"] == "empty"
+            assert status["rows"] == 0
+            assert status["trustScore"] == 0
+            assert "upload" in status["ingestPath"].lower()
+            assert fresh.get("/health").json()["mode"] == "empty"
+            blocked = fresh.get("/api/contracts")
+            assert blocked.status_code == 503
+            assert "upload" in blocked.json()["detail"].lower()
+    finally:
+        # Restore the module fixture's dataset regardless of test ordering.
+        report = parse_upload(build_seed_frame().to_csv(index=False).encode("utf-8"))
+        assert report.ok and report.frame is not None
+        STORE.set_active(report.frame, "api", "test seed re-upload")
 
 
 def test_health(client: TestClient) -> None:
@@ -208,5 +240,6 @@ def test_upload_round_trip_flips_mode_to_api(client: TestClient) -> None:
 
     reset = client.post("/api/datasets/reset")
     assert reset.status_code == 200
-    # Reset re-activates the bundled real bhavcopy, not the synthetic seed.
-    assert client.get("/api/data/status").json()["source"] == "api"
+    # Reset means back to no data at all — the engine stays empty until the
+    # next upload; nothing synthetic or bundled is ever re-served.
+    assert client.get("/api/data/status").json()["source"] == "empty"

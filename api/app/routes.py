@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, UploadFile
@@ -17,16 +18,14 @@ from fastapi.responses import RedirectResponse
 
 from app.assistant import AssistantEngine
 from app.engine import alerts as alerts_engine
-from app.engine import term as term_engine
 from app.engine.backtest import run_backtest
 from app.engine.ingest import date_bounds, file_digest, parse_upload
 from app.engine.relative_value import build_spread_points, get_spread_series
-from app.llm import llm_enabled, narrate
-from app.engine.simulate import AS_OF
-from app.engine.store import RAW_DIR, STORE, UploadRecord
+from app.engine.store import RAW_DIR, STORE, EmptyDatasetError, UploadRecord
 from app.engine.status import build_data_status, build_watchlist
 from app.engine.term import contract_history, front_series, term_structure
 from app.engine.view_contracts import contract_rows, price_series
+from app.llm import llm_enabled, narrate
 from app.methodology import methodology_docs
 from app.products import PRODUCT_IDS, PRODUCT_SPECS
 
@@ -36,7 +35,10 @@ _BACKTESTS: dict[str, dict] = {}
 
 
 def _frame():
-    return STORE.frame
+    try:
+        return STORE.frame
+    except EmptyDatasetError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
 
 
 def _spread_series(leg_a: str, leg_b: str, window: str):
@@ -74,12 +76,17 @@ def root() -> RedirectResponse:
 
 @router.get("/health")
 def health() -> dict[str, Any]:
-    frame = STORE.frame
+    try:
+        frame = STORE.frame
+        as_of: str | None = str(frame["tradeDate"].max()) if not frame.empty else None
+        rows = int(len(frame))
+    except EmptyDatasetError:
+        as_of, rows = None, 0
     return {
         "ok": True,
         "mode": STORE.mode,
-        "asOf": str(frame["tradeDate"].max()) if not frame.empty else AS_OF,
-        "rows": int(len(frame)),
+        "asOf": as_of,
+        "rows": rows,
     }
 
 
@@ -88,36 +95,23 @@ def instruments() -> list[dict[str, Any]]:
     return [dict(item) for item in PRODUCT_SPECS]
 
 
-@router.get("/api/spot")
-def spot_anchor(days: int = 60) -> dict[str, Any]:
-    """Exposure of the synthetic spot path — dashboard hero chart."""
-    from app.engine.simulate import _SpotPath
-
-    path = _SpotPath()
-    frame = STORE.frame
-    dates = sorted(frame["tradeDate"].unique()) if not frame.empty else []
-    series = []
-    for date in dates[-days:]:
-        value = path.at(str(date))
-        if value is None:
-            continue
-        series.append({"date": str(date), "price": round(value, 2)})
-    if not series:
-        return {"date": AS_OF, "pricePerGram": 0.0, "pricePer10g": 0.0, "changePct": 0.0, "series": []}
-    last, prev = series[-1]["price"], series[-2]["price"] if len(series) > 1 else series[-1]["price"]
-    return {
-        "date": series[-1]["date"],
-        "pricePerGram": last,
-        "pricePer10g": round(last * 10, 2),
-        "changePct": 0.0 if prev == 0 else (last - prev) / prev * 100,
-        "series": series,
-    }
-
-
 # --- data status & watchlist ---------------------------------------------------
 
 @router.get("/api/data/status")
 def data_status() -> dict[str, Any]:
+    if STORE.mode == "empty":
+        now = datetime.now(timezone.utc)
+        return {
+            "asOf": now.date().isoformat(),
+            "generatedAt": now.isoformat(),
+            "source": "empty",
+            "rows": 0,
+            "contracts": 0,
+            "trustScore": 0,
+            "checks": [],
+            "ingestPath": "No dataset loaded — upload a bhavcopy CSV to begin.",
+            "nextExpected": now.date().isoformat(),
+        }
     return _data_status()
 
 
@@ -239,12 +233,13 @@ def create_backtest(params: dict[str, Any]) -> dict[str, Any]:
         raise HTTPException(status_code=404, detail="No spread series for this pair.")
     round_trip = float(series["summary"]["roundTripCostBps"])
     half_life_days = float(series["summary"]["halfLifeDays"])
-    as_of = str(frame["tradeDate"].max()) if not frame.empty else AS_OF
+    as_of = str(frame["tradeDate"].max())
 
     def spread_points(leg_a: str, leg_b: str, window: str) -> list[dict[str, Any]]:
         return build_spread_points(_frame(), leg_a, leg_b)
 
-    result = run_backtest(dict(params), spread_points, round_trip, half_life_days, as_of, STORE.mode == "demo")
+    # Only real, uploaded settlements are ever served — never the demo flag.
+    result = run_backtest(dict(params), spread_points, round_trip, half_life_days, as_of, False)
     _BACKTESTS[result["id"]] = result
     return result
 
@@ -331,7 +326,7 @@ def datasets() -> list[dict[str, Any]]:
 
 @router.post("/api/datasets/reset")
 def reset_dataset() -> dict[str, Any]:
-    STORE.reset_to_seed()
+    STORE.clear()
     return {"status": "reset", "mode": STORE.mode}
 
 
@@ -365,14 +360,15 @@ def assistant_query(payload: dict[str, Any]) -> dict[str, Any]:
     if not question:
         raise HTTPException(status_code=422, detail="question is required.")
 
-    use_llm = bool(payload.get("useLlm"))
-    if use_llm and llm_enabled():
-        brief = assistant.grounded_brief()
-        user_brief = f"{json.dumps(brief, indent=1, default=str)}\n\nQuestion: {question}"
-        narrative = narrate(user_brief)
-        if narrative:
-            base = assistant.answer(question)  # citations + dataNotes stay engine-owned
-            return {**base, "answer": narrative, "confidence": 0.75, "mode": "llm"}
-        # LLM unreachable / out of credits → deterministic template below
-
-    return {**assistant.answer(question), "mode": "template"}
+    try:
+        if bool(payload.get("useLlm")) and llm_enabled():
+            brief = assistant.grounded_brief()
+            user_brief = f"{json.dumps(brief, indent=1, default=str)}\n\nQuestion: {question}"
+            narrative = narrate(user_brief)
+            if narrative:
+                base = assistant.answer(question)  # citations + dataNotes stay engine-owned
+                return {**base, "answer": narrative, "confidence": 0.75, "mode": "llm"}
+            # LLM unreachable / out of credits → deterministic template below
+        return {**assistant.answer(question), "mode": "template"}
+    except EmptyDatasetError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc

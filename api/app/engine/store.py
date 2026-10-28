@@ -1,22 +1,20 @@
-"""Holds the working dataset: a bundled real bhavcopy, an upload, or the seed.
+"""Holds the working dataset: whatever the user uploaded, nothing else.
 
-`mode` flips demo → api whenever real MCX settlements are being served — the
-bundled seed bhavcopy (api/data/seed/) or a user upload — and only the
-synthetic fallback market reports "demo". The data-quality badge in the UI
-must tell the truth about which market the engine serves.
+There is no bundled or synthetic fallback market — a fresh instance has no
+dataset until a CSV is uploaded, and every engine route answers 503 until
+then. `mode` is "empty" before the first upload and "api" once real MCX
+settlements are loaded; the UI must tell the truth about which it serves.
 
 Serverless note: Vercel Python functions keep no state between invocations
 and mount a read-only filesystem. When Upstash Redis credentials are present
 (the Vercel Storage → Upstash integration injects UPSTASH_REDIS_REST_URL and
-UPSTASH_REDIS_REST_TOKEN), every state change is mirrored to Redis and a
-cold instance restores it before falling back to the bundled bhavcopy.
-Without credentials the store behaves exactly as before — in-memory, for
-local dev — so nothing changes for `scripts/run_backend.py`.
+UPSTASH_REDIS_REST_TOKEN), every state change — upload, reset — is mirrored
+to Redis and a cold instance restores it before reporting "empty". Without
+credentials the store is in-memory, for local dev.
 """
 
 from __future__ import annotations
 
-import hashlib
 import json
 import os
 import threading
@@ -28,56 +26,13 @@ from pathlib import Path
 import pandas as pd
 
 from app.config import SETTINGS
-from app.engine.ingest import date_bounds, parse_upload
-from app.engine.simulate import build_seed_frame
 
 RAW_DIR = Path(SETTINGS.data_dir) / "raw"
 REGISTRY_PATH = Path(SETTINGS.data_dir) / "datasets.json"
 
-SEED_LABEL = "Synthetic market, seeded to mirror demo parameters"
 
-BUNDLED_SEED_PATH = Path(SETTINGS.data_dir) / "seed" / "BhavCopyDateWise_27102026.csv"
-_bundled_cache: tuple["pd.DataFrame", str, "UploadRecord"] | None = None
-_bundled_tried = False
-
-
-def bundled_seed() -> tuple["pd.DataFrame", str, "UploadRecord"] | None:
-    """The repo's bundled real MCX bhavcopy, parsed once per process.
-
-    Shipping a real settlement file lets a cold serverless instance (Vercel)
-    serve the actual market instead of the synthetic seed before any upload —
-    the app answers with real prices from its very first request. Returns
-    None when the file is missing or fails validation; the synthetic seed
-    stays the last resort.
-    """
-    global _bundled_cache, _bundled_tried
-    if not _bundled_tried:
-        _bundled_tried = True
-        try:
-            data = BUNDLED_SEED_PATH.read_bytes()
-            report = parse_upload(data)
-            if report.ok and report.frame is not None:
-                bounds = date_bounds(report.frame)
-                label = (
-                    f"Bundled {BUNDLED_SEED_PATH.name} "
-                    f"({len(report.frame)} rows, {bounds[0]}→{bounds[1]})"
-                )
-                record = UploadRecord(
-                    dataset_id="ds-bundled-seed",
-                    filename=BUNDLED_SEED_PATH.name,
-                    sha256=hashlib.sha256(data).hexdigest(),
-                    mode="api",
-                    rows=int(len(report.frame)),
-                    from_date=bounds[0],
-                    to_date=bounds[1],
-                    symbols=list(report.symbols),
-                    errors=len(report.errors),
-                    warnings=len(report.warnings),
-                )
-                _bundled_cache = (report.frame, label, record)
-        except Exception:
-            pass
-    return _bundled_cache
+class EmptyDatasetError(RuntimeError):
+    """Raised when the engine is asked for data before any CSV is uploaded."""
 
 # The float columns lose their dtype in a JSON round-trip when a value is
 # integral; re-assert them on restore.
@@ -190,8 +145,8 @@ class DatasetStore:
         self._mirror = mirror or UpstashMirror()
         self._lock = threading.RLock()
         self._active: pd.DataFrame | None = None
-        self._mode: str = "demo"
-        self._source_label: str = SEED_LABEL
+        self._mode: str = "empty"
+        self._source_label: str = ""
         self._records: list[UploadRecord] = []
         self._restored = False
         self._ensure_writable_dir()
@@ -206,20 +161,34 @@ class DatasetStore:
     # --- persistence ----------------------------------------------------------
 
     def _snapshot(self) -> dict[str, object]:
-        frame = self._active if self._active is not None else self.frame
+        if self._active is None:
+            # The empty state is a real state: mirror it so a reset propagates.
+            return {
+                "version": 1,
+                "records": [record.to_dict() for record in self._records],
+                "active": None,
+            }
         return {
             "version": 1,
             "records": [record.to_dict() for record in self._records],
             "active": {
                 "mode": self._mode,
                 "sourceLabel": self._source_label,
-                "frame": frame.to_json(orient="split"),
+                "frame": self._active.to_json(orient="split"),
             },
         }
 
     def _apply_snapshot(self, data: dict[str, object]) -> bool:
         try:
-            active = data["active"]
+            records_raw = data.get("records")
+            assert isinstance(records_raw, list)
+            self._records = [UploadRecord.from_dict(record) for record in records_raw]
+            active = data.get("active")
+            if active is None:  # mirrored empty state — stay empty
+                self._active = None
+                self._mode = "empty"
+                self._source_label = ""
+                return True
             assert isinstance(active, dict)
             frame = pd.read_json(
                 StringIO(str(active["frame"])),
@@ -230,18 +199,15 @@ class DatasetStore:
             frame = frame.astype({column: "float64" for column in _FLOAT_COLUMNS if column in frame.columns})
             if "stale" in frame.columns:
                 frame["stale"] = frame["stale"].astype(bool)
-            records_raw = data.get("records")
-            assert isinstance(records_raw, list)
-            self._records = [UploadRecord.from_dict(record) for record in records_raw]
             self._active = frame
             self._mode = str(active.get("mode", "api"))
-            self._source_label = str(active.get("sourceLabel", SEED_LABEL))
+            self._source_label = str(active.get("sourceLabel", ""))
             return True
         except Exception:
-            return False  # corrupt snapshot → keep the seed
+            return False  # corrupt snapshot → stay empty, never invent data
 
     def _ensure_restored(self) -> None:
-        """Restore the mirrored state once per process, before any seed use."""
+        """Restore the mirrored state once per process, before anything else."""
         if self._restored:
             return
         self._restored = True
@@ -278,29 +244,20 @@ class DatasetStore:
         with self._lock:
             self._ensure_restored()
             if self._active is None:
-                bundled = bundled_seed()
-                if bundled is not None:
-                    frame, label, record = bundled
-                    self._active = frame
-                    self._mode = "api"  # real settlements — never call them demo
-                    self._source_label = label
-                    if record.dataset_id not in {r.dataset_id for r in self._records}:
-                        self._records.append(record)
-                else:
-                    self._active = build_seed_frame()
+                raise EmptyDatasetError("No dataset loaded — upload a bhavcopy CSV first.")
             return self._active
 
     @property
     def mode(self) -> str:
-        _ = self.frame  # ensure seed is present before reporting mode
         with self._lock:
-            return self._mode
+            self._ensure_restored()
+            return self._mode if self._active is not None else "empty"
 
     @property
     def source_label(self) -> str:
-        _ = self.frame
         with self._lock:
-            return self._source_label
+            self._ensure_restored()
+            return self._source_label if self._active is not None else "No dataset loaded"
 
     @property
     def records(self) -> list[UploadRecord]:
@@ -332,12 +289,13 @@ class DatasetStore:
             self._ensure_restored()
             return any(record.sha256 == digest for record in self._records)
 
-    def reset_to_seed(self) -> None:
+    def clear(self) -> None:
+        """Forget the working dataset — the store reports empty until an upload."""
         with self._lock:
             self._active = None
-            self._mode = "demo"
-            self._source_label = SEED_LABEL
-        self._mirror.clear()
+            self._mode = "empty"
+            self._source_label = ""
+        self._save_state()
 
 
 STORE = DatasetStore()
