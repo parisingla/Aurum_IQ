@@ -23,7 +23,7 @@ export function PanelSkeleton({ rows = 4 }: { rows?: number }) {
           <Skeleton key={i} className="h-8 w-full" />
         ))}
       </div>
-      <span className="sr-only">Loading demo data…</span>
+      <span className="sr-only">Loading panel data…</span>
     </div>
   );
 }

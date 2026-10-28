@@ -15,12 +15,14 @@ import { Upload, RefreshCw, CheckCircle2 } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { MarbleArtwork } from "@/components/ui/marble";
 import { cn } from "@/lib/cn";
-import { API_BASE_URL, DATA_MODE, fetchDataStatus, fetchAlerts } from "@/lib/api";
+import { API_BASE_URL, fetchDataStatus, fetchAlerts } from "@/lib/api";
+import type { DataStatus } from "@/lib/types";
 import { useAsync } from "@/lib/hooks";
 import { titleForPath } from "./nav-items";
 import { SiteFooter } from "./footer";
 import { MobileNav, SideNav } from "./side-nav";
 import { TopBar, type AppNotification } from "./top-bar";
+import { DatasetGate, type DatasetState } from "./dataset-gate";
 
 /* -------------------------------------------------------------------------- */
 /* Shell state: navigation drawer, refresh nonce, page heading                 */
@@ -179,7 +181,7 @@ function UploadDataset({ onClose }: { onClose: () => void }) {
         <ul className="ml-3 space-y-1">
           <li>• Date-wise MCX bhavcopy (27 Oct 2026 style) or the column layout below</li>
           <li>• Symbol, Trade Date, Expiry, Open, High, Low, Close, Volume, OI</li>
-          <li>• Dates: DD-MMM-YYYY, YYYY-MM-DD, DD/MM/YYYY, or "27 Oct 2026"</li>
+          <li>• Dates: DD-MMM-YYYY, YYYY-MM-DD, DD/MM/YYYY, or &quot;27 Oct 2026&quot;</li>
           <li>• Option-chain rows (CE/PE) are skipped automatically</li>
         </ul>
       </div>
@@ -224,7 +226,13 @@ function Wordmark() {
  * the shared ocean marble with its gold-vein cluster visible via a deliberate
  * bottom crop, and the version footer layered on a readable gradient.
  */
-function RailFragment() {
+function RailFragment({ dataSource }: { dataSource: DataStatus["source"] | null }) {
+  const label =
+    dataSource === "api"
+      ? "Live MCX dataset"
+      : dataSource === "empty"
+        ? "No dataset — upload a CSV"
+        : "Engine not connected";
   return (
     <div className="relative mt-4 h-[var(--marble-fragment-height)]" aria-hidden="true">
       <MarbleArtwork
@@ -239,7 +247,7 @@ function RailFragment() {
           Aurum IQ {APP_VERSION}
         </p>
         <p className="mt-1 text-[0.625rem] leading-snug text-secondary-text">
-          {DATA_MODE === "api" ? "Live API dataset" : "Illustrative demo data"}
+          {label}
         </p>
       </div>
     </div>
@@ -248,14 +256,14 @@ function RailFragment() {
 
 const APP_VERSION = "v0.1.0";
 
-function Rail() {
+function Rail({ dataSource }: { dataSource: DataStatus["source"] | null }) {
   return (
     <aside className="sticky top-0 hidden h-screen w-[250px] shrink-0 flex-col border-r border-line bg-white-surface lg:flex">
       <Wordmark />
       <div className="scroll-thin relative z-10 min-h-0 flex-1 overflow-y-auto bg-white-surface">
         <SideNav />
       </div>
-      <RailFragment />
+      <RailFragment dataSource={dataSource} />
     </aside>
   );
 }
@@ -270,6 +278,17 @@ function AppShellInner({ children }: { children: ReactNode }) {
   const navItem = titleForPath(pathname);
   const alerts = useAsync(() => fetchAlerts(), [refreshNonce]);
   const status = useAsync(() => fetchDataStatus(), [refreshNonce]);
+
+  // What the whole app shows: until a dataset is uploaded the gate replaces
+  // every page — the terminal must not render a single invented number.
+  const datasetState: DatasetState =
+    status.data != null
+      ? status.data.source === "api"
+        ? "api"
+        : "empty"
+      : status.error != null
+        ? "offline"
+        : "loading";
 
   // Real notifications only: failed data-quality checks from the engine and
   // armed (non-info) alerts. No synthetic filler.
@@ -301,7 +320,7 @@ function AppShellInner({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex min-h-screen min-w-0">
-      <Rail />
+      <Rail dataSource={datasetState === "api" || datasetState === "empty" ? datasetState : null} />
       <Modal
         open={navOpen}
         onClose={() => setNavOpen(false)}
@@ -329,9 +348,16 @@ function AppShellInner({ children }: { children: ReactNode }) {
           onMenu={() => setNavOpen(true)}
           onUpload={() => setUploadOpen(true)}
           notifications={notifications}
+          dataSource={status.data?.source ?? null}
         />
-        <main className="min-w-0 flex-1">{children}</main>
-        <SiteFooter onRefresh={refresh} />
+        <main className="min-w-0 flex-1">
+          {datasetState === "api" ? (
+            children
+          ) : (
+            <DatasetGate state={datasetState} detail={status.error ?? undefined} />
+          )}
+        </main>
+        <SiteFooter onRefresh={refresh} status={status.data} />
       </div>
     </div>
   );

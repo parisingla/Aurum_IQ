@@ -5,18 +5,26 @@ import { RefreshCw } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SparklesCore } from "@/components/ui/sparkles";
-import { DATA_MODE } from "@/lib/api";
 import { formatDate } from "@/lib/format";
-import { AS_OF } from "@/lib/mock/seed";
+import type { DataStatus } from "@/lib/types";
 import { NAV_ITEMS } from "./nav-items";
 
 const SPARKLE_COLORS = ["#f0c766", "#d6a640", "#a5a199", "#eae7e0"];
 
 /**
- * Site footer: the AurumIQ wordmark over a sparkle beam, navigation, live
- * fixture metadata and the demo-data disclaimer.
+ * Site footer: the AurumIQ wordmark over a sparkle beam, navigation, and the
+ * engine's own dataset metadata. The badge and session rows tell the truth
+ * about what the last uploaded CSV contains — with no upload they say so.
  */
-export function SiteFooter({ onRefresh }: { onRefresh: () => void }) {
+export function SiteFooter({
+  onRefresh,
+  status,
+}: {
+  onRefresh: () => void;
+  status?: DataStatus | null;
+}) {
+  const live = status?.source === "api";
+
   return (
     <footer className="relative overflow-hidden border-t border-line bg-ink-900">
       <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-gold/60 to-transparent" />
@@ -63,15 +71,15 @@ export function SiteFooter({ onRefresh }: { onRefresh: () => void }) {
               edge.
             </p>
             <div className="mt-3.5 flex flex-wrap items-center gap-2">
-              {DATA_MODE === "api" ? (
+              {status == null ? (
+                <Badge tone="warning">ENGINE OFFLINE</Badge>
+              ) : live ? (
                 <Badge tone="info">LIVE ENGINE</Badge>
               ) : (
-                <Badge tone="warning">DEMO DATA</Badge>
+                <Badge tone="warning">NO DATASET — UPLOAD CSV</Badge>
               )}
-              <Badge tone="outline">FIXTURES {formatDate(AS_OF)}</Badge>
-              <Badge tone="outline">
-                {DATA_MODE === "api" ? "HTTP API MODE" : "LOCAL FIXTURES"}
-              </Badge>
+              <Badge tone="outline">{live ? `SETTLEMENTS ${formatDate(status?.asOf ?? "")}` : "NO DATASET"}</Badge>
+              <Badge tone="outline">UPLOAD-DRIVEN</Badge>
             </div>
           </div>
 
@@ -102,17 +110,25 @@ export function SiteFooter({ onRefresh }: { onRefresh: () => void }) {
             <p className="label-mono">Session &amp; method</p>
             <dl className="mt-3 space-y-2 text-[0.75rem] leading-relaxed">
               <div className="flex gap-2">
-                <dt className="w-28 shrink-0 text-dim">Fixtures as of</dt>
-                <dd className="font-mono tabular-nums text-ash">{formatDate(AS_OF)} · 15:30 IST</dd>
+                <dt className="w-28 shrink-0 text-dim">Data as of</dt>
+                <dd className="font-mono tabular-nums text-ash">
+                  {live && status ? `${formatDate(status.asOf)} · 15:30 IST` : "— no dataset"}
+                </dd>
               </div>
               <div className="flex gap-2">
                 <dt className="w-28 shrink-0 text-dim">Next session</dt>
-                <dd className="font-mono tabular-nums text-ash">2026-10-20 · 09:00 IST</dd>
+                <dd className="font-mono tabular-nums text-ash">
+                  {live && status ? `${formatDate(status.nextExpected)} · 09:00 IST` : "— after first upload"}
+                </dd>
               </div>
               <div className="flex gap-2">
-                <dt className="w-28 shrink-0 text-dim">Data mode</dt>
+                <dt className="w-28 shrink-0 text-dim">Data source</dt>
                 <dd className="font-mono text-ash">
-                  {DATA_MODE === "api" ? "HTTP API" : "Bundled fixtures, no network"}
+                  {status == null
+                    ? "Engine not connected"
+                    : live
+                      ? `Uploaded CSV · ${status.rows.toLocaleString()} rows`
+                      : "Empty — nothing synthesised"}
                 </dd>
               </div>
             </dl>
@@ -130,7 +146,7 @@ export function SiteFooter({ onRefresh }: { onRefresh: () => void }) {
                 onClick={onRefresh}
                 title="Reload every panel (Cmd/Ctrl + Shift + R)"
               >
-                Refresh fixtures
+                Refresh panels
               </Button>
             </div>
             <p className="mt-2.5 text-[0.6875rem] leading-snug text-dim">
@@ -142,8 +158,9 @@ export function SiteFooter({ onRefresh }: { onRefresh: () => void }) {
         <div className="mt-8 flex flex-col gap-2 border-t border-line/70 pt-4 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
           <p className="max-w-3xl text-[0.6875rem] leading-relaxed text-dim">
             Commodity Derivatives Intelligence track. A research terminal, not investment advice —
-            no order entry, no execution. Every price, volume and signal is generated demo data;
-            contested contract specifications are listed on the Research page.
+            no order entry, no execution. Every number shown comes from the last uploaded bhavcopy
+            CSV; with no upload the terminal is empty and stays that way — nothing is synthesised
+            or preloaded.
           </p>
           <p className="label-mono shrink-0 text-dim">aurum iq · build 2026.10</p>
         </div>

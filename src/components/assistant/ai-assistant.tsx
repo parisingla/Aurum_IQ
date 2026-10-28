@@ -7,7 +7,7 @@ import { PageShell, useRefreshNonce } from "@/components/layout/shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Panel } from "@/components/ui/panel";
-import { DATA_MODE, askAssistant, fetchDataStatus, isLiveApi } from "@/lib/api";
+import { askAssistant, fetchDataStatus } from "@/lib/api";
 import { useAsync } from "@/lib/hooks";
 
 interface Message {
@@ -37,8 +37,8 @@ export function AIAssistant() {
   const autoRan = useRef(false);
 
   // Live dataset loaded? (source flips to "api" after a successful upload)
-  const status = useAsync(() => (isLiveApi ? fetchDataStatus() : Promise.resolve(null)), [refreshNonce]);
-  const datasetLoaded = isLiveApi && status.data?.source === "api";
+  const status = useAsync(() => fetchDataStatus(), [refreshNonce]);
+  const datasetLoaded = status.data?.source === "api";
 
   const runQuery = async (content: string, options: { useLlm?: boolean; busySetter?: (busy: boolean) => void } = {}) => {
     const busy = options.busySetter ?? setLoading;
@@ -46,20 +46,6 @@ export function AIAssistant() {
     busy(true);
 
     try {
-      if (!isLiveApi) {
-        await new Promise((resolve) => setTimeout(resolve, 900));
-        setMessages((prev) => [
-          ...prev,
-          {
-            role: "assistant",
-            timestamp: new Date(),
-            mode: "template",
-            content:
-              "I'm running on bundled demo fixtures in this mode — no engine, no LLM. Start the engine and set NEXT_PUBLIC_API_BASE_URL=same-origin, then ask again: the grounded assistant (and the AI narrative) work against the live dataset.",
-          },
-        ]);
-        return;
-      }
       const response = await askAssistant(content, { useLlm: options.useLlm });
       setMessages((prev) => [
         ...prev,
@@ -90,7 +76,6 @@ export function AIAssistant() {
     if (autoRan.current || !carriedQuestion.trim()) return;
     autoRan.current = true;
     void runQuery(carriedQuestion.trim());
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [carriedQuestion]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -229,9 +214,11 @@ export function AIAssistant() {
             </Button>
             {!datasetLoaded && (
               <p className="mt-2 text-[0.6875rem] text-dim leading-snug">
-                {isLiveApi
-                  ? "Waiting for an upload — the engine is still on the synthetic seed."
-                  : "Connect the engine (NEXT_PUBLIC_API_BASE_URL) and upload a CSV."}
+                {status.data?.source === "empty"
+                  ? "Upload a bhavcopy CSV first — there is nothing to analyze until then."
+                  : status.error != null
+                    ? "Engine not connected — check NEXT_PUBLIC_API_BASE_URL."
+                    : "Checking the engine…"}
               </p>
             )}
           </Panel>
@@ -273,9 +260,9 @@ export function AIAssistant() {
               <li className="flex items-start gap-2">
                 <span className="text-gold mt-0.5">•</span>
                 <span>
-                  {DATA_MODE === "api"
-                    ? "AI narrative (OpenRouter) when enabled; template fallback otherwise"
-                    : "Demo mode: canned responses until the engine is connected"}
+                  {status.data?.source === "empty"
+                    ? "No dataset yet — upload a CSV and the assistant answers from it"
+                    : "AI narrative (OpenRouter) when enabled; template fallback otherwise"}
                 </span>
               </li>
             </ul>

@@ -300,7 +300,7 @@ export default function ResearchPage() {
         <Panel
           eyebrow="Interface"
           title="Backend routes this UI is written against"
-          description="Set NEXT_PUBLIC_API_BASE_URL and every panel switches from fixtures to HTTP, with Zod validation on the response before it renders."
+          description="Every panel is an HTTP call to the engine (same-origin /api/*), validated with Zod before it renders — the engine serves only what the uploaded CSV contains."
         >
           <table className="w-full border-collapse text-sm">
             <thead>
@@ -327,9 +327,9 @@ export default function ResearchPage() {
             </tbody>
           </table>
           <p className="mt-3 text-[0.6875rem] leading-relaxed text-dim">
-            One knob: <span className="font-mono text-ash">NEXT_PUBLIC_DEMO_LATENCY_MS</span>{" "}
-            controls fixture latency (default 450 ms) so loading, retry and error states are real
-            code paths rather than decorations.
+            One knob: <span className="font-mono text-ash">NEXT_PUBLIC_API_BASE_URL</span>{" "}
+            points the pages at the engine — leave it unset (or <span className="font-mono text-ash">same-origin</span>)
+            to go through the same-origin proxy, or set an absolute URL for an external deployment.
           </p>
         </Panel>
       </div>

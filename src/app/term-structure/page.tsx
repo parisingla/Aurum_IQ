@@ -5,7 +5,7 @@ import { PanelSkeleton } from "@/components/ui/states";
 
 export const metadata = {
   title: "Term Structure",
-  description: "Forward curves and carry analysis for MCX gold futures — demo data.",
+  description: "Forward curves and carry analysis for MCX gold futures.",
 };
 
 export default function TermStructurePage() {

@@ -11,16 +11,6 @@ import type {
 import { productSpec } from "@/lib/products";
 import { recordRun } from "@/lib/history";
 import { z } from "zod";
-import { getAlerts } from "@/lib/mock/alerts";
-import { defaultBacktestParams, getBacktest, runBacktest } from "@/lib/mock/backtest";
-import {
-  getDataStatus,
-  getContractHistory,
-  getLiveContracts,
-  getSpreadSeries,
-  getTermStructure,
-  getWatchlist,
-} from "@/lib/mock/market";
 import {
   alertSchema,
   assistantResponseSchema,
@@ -38,29 +28,26 @@ import {
 } from "@/lib/validation";
 
 /**
- * Single access layer for every number the UI shows.
- *
- * With NEXT_PUBLIC_API_BASE_URL unset the demo fixtures answer each call after
- * a short simulated latency, so loading and error states are real code paths.
- * With it set, the same functions call the production routes documented in the
- * brief and validate the payload with Zod before it reaches a component.
+ * Single access layer for every number the UI shows. Every call goes to the
+ * FastAPI engine and is validated with Zod before it reaches a component —
+ * there is no bundled demo fallback: with no dataset uploaded the engine
+ * reports `source: "empty"` and the app shows the upload gate.
  */
 
 // "same-origin" (or "/api") → every path is relative to this app; the Next.js
 // rewrites in next.config.ts proxy /api/* to the FastAPI engine (dev:
 // 127.0.0.1:8000 via scripts/run_backend.py, prod: the api/ serverless
-// function). An absolute URL calls an external backend; empty means demo.
+// function). An absolute URL calls an external backend.
 const RAW_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL ?? "")
   .trim()
   .replace(/\/+$/, "");
 const API_BASE = RAW_BASE === "same-origin" || RAW_BASE === "/api" ? "" : RAW_BASE;
-const DEMO_LATENCY_MS = Number(process.env.NEXT_PUBLIC_DEMO_LATENCY_MS ?? 450);
 
 /** Base for direct calls outside the typed access layer (multipart upload). */
 export const API_BASE_URL = API_BASE;
 
+/** True when a base URL is configured at all — false means "engine not connected". */
 export const isLiveApi = RAW_BASE.length > 0;
-export const DATA_MODE: "demo" | "api" = isLiveApi ? "api" : "demo";
 
 export class ApiError extends Error {
   readonly status?: number;
@@ -72,10 +59,6 @@ export class ApiError extends Error {
     this.path = path;
     this.status = status;
   }
-}
-
-function wait(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 async function getJson<T>(path: string, schema: z.ZodType<T>): Promise<T> {
@@ -148,9 +131,7 @@ function queryString(params: Record<string, string | number | boolean | undefine
 /* -------------------------------------------------------------------------- */
 
 export async function fetchDataStatus(): Promise<DataStatus> {
-  if (isLiveApi) return getJson("/api/data/status", dataStatusSchema);
-  await wait(DEMO_LATENCY_MS);
-  return getDataStatus();
+  return getJson("/api/data/status", dataStatusSchema);
 }
 
 export async function fetchContracts(raw: Partial<ContractQuery> = {}): Promise<Contract[]> {
@@ -158,38 +139,15 @@ export async function fetchContracts(raw: Partial<ContractQuery> = {}): Promise<
   if (!parsed.ok) throw new ApiError(`Invalid contract query: ${parsed.issues.join("; ")}`);
   const query = parsed.data;
 
-  if (isLiveApi) {
-    return getJson(
-      `/api/contracts${queryString({
-        product: query.product,
-        q: query.search,
-        stale: query.staleOnly,
-        sort: query.sort,
-      })}`,
-      z.array(contractSchema) as z.ZodType<Contract[]>,
-    );
-  }
-
-  await wait(DEMO_LATENCY_MS);
-  let contracts = getLiveContracts();
-  if (query.product) contracts = contracts.filter((c) => c.productId === query.product);
-  if (query.search) {
-    const needle = query.search.toLowerCase();
-    contracts = contracts.filter(
-      (c) =>
-        c.contractCode.toLowerCase().includes(needle) ||
-        c.productId.toLowerCase().includes(needle),
-    );
-  }
-  if (query.staleOnly) contracts = contracts.filter((c) => c.stale);
-
-  const sorters: Record<ContractQuery["sort"], (a: Contract, b: Contract) => number> = {
-    expiry: (a, b) => a.expiry.localeCompare(b.expiry),
-    volume: (a, b) => b.volumeLots - a.volumeLots,
-    oi: (a, b) => b.openInterestLots - a.openInterestLots,
-    settle: (a, b) => b.settle - a.settle,
-  };
-  return [...contracts].sort(sorters[query.sort]);
+  return getJson(
+    `/api/contracts${queryString({
+      product: query.product,
+      q: query.search,
+      stale: query.staleOnly,
+      sort: query.sort,
+    })}`,
+    z.array(contractSchema) as z.ZodType<Contract[]>,
+  );
 }
 
 export async function fetchRelativeValue(raw: Partial<SpreadQuery> = {}): Promise<SpreadSeries> {
@@ -197,41 +155,27 @@ export async function fetchRelativeValue(raw: Partial<SpreadQuery> = {}): Promis
   if (!parsed.ok) throw new ApiError(`Invalid spread query: ${parsed.issues.join("; ")}`);
   const query = parsed.data;
 
-  if (isLiveApi) {
-    return getJson(
-      `/api/analytics/relative-value${queryString({
-        legA: query.legA,
-        legB: query.legB,
-        range: query.range,
-      })}`,
-      spreadSeriesSchema,
-    );
-  }
-
-  await wait(DEMO_LATENCY_MS);
-  return getSpreadSeries(query.legA, query.legB, query.range);
+  return getJson(
+    `/api/analytics/relative-value${queryString({
+      legA: query.legA,
+      legB: query.legB,
+      range: query.range,
+    })}`,
+    spreadSeriesSchema,
+  );
 }
 
 export async function fetchTermStructure(): Promise<TermStructure> {
-  if (isLiveApi) return getJson("/api/analytics/term-structure", termStructureSchema);
-  await wait(DEMO_LATENCY_MS);
-  return getTermStructure();
+  return getJson("/api/analytics/term-structure", termStructureSchema);
 }
 
 export async function fetchAlerts(): Promise<Alert[]> {
-  if (isLiveApi) return getJson("/api/alerts", z.array(alertSchema) as z.ZodType<Alert[]>);
-  await wait(DEMO_LATENCY_MS);
-  return getAlerts();
+  return getJson("/api/alerts", z.array(alertSchema) as z.ZodType<Alert[]>);
 }
 
 export async function createBacktest(raw: BacktestParamsInput): Promise<BacktestResult> {
   const params: BacktestParams = raw;
-  const result = isLiveApi
-    ? await postJson("/api/backtests", params, backtestResultSchema)
-    : await (async () => {
-        await wait(DEMO_LATENCY_MS * 2);
-        return runBacktest(params);
-      })();
+  const result = await postJson("/api/backtests", params, backtestResultSchema);
 
   recordRun({
     id: result.id,
@@ -245,11 +189,7 @@ export async function createBacktest(raw: BacktestParamsInput): Promise<Backtest
 }
 
 export async function fetchBacktest(id: string): Promise<BacktestResult> {
-  if (isLiveApi) return getJson(`/api/backtests/${encodeURIComponent(id)}`, backtestResultSchema);
-  await wait(DEMO_LATENCY_MS);
-  const found = getBacktest(id);
-  if (found) return found;
-  throw new ApiError(`No backtest with id ${id} in this session.`, `/api/backtests/${id}`);
+  return getJson(`/api/backtests/${encodeURIComponent(id)}`, backtestResultSchema);
 }
 
 /**
@@ -261,12 +201,21 @@ export async function askAssistant(
   question: string,
   options: { useLlm?: boolean } = {},
 ): Promise<z.infer<typeof assistantResponseSchema>> {
-  if (isLiveApi) return postJson("/api/assistant/query", { question, useLlm: options.useLlm ?? false }, assistantResponseSchema);
-  await wait(DEMO_LATENCY_MS);
-  throw new ApiError("The assistant needs a live engine (NEXT_PUBLIC_API_BASE_URL).", "/api/assistant/query");
+  return postJson("/api/assistant/query", { question, useLlm: options.useLlm ?? false }, assistantResponseSchema);
 }
 
-export { defaultBacktestParams };
+export function defaultBacktestParams(): BacktestParams {
+  return {
+    legA: "GOLDM",
+    legB: "GOLDPETAL",
+    entryZ: 2,
+    exitZ: 0.5,
+    windowDays: 60,
+    costMultiplier: 1,
+    trainDays: 250,
+    testDays: 40,
+  };
+}
 
 
 /* -------------------------------------------------------------------------- */
@@ -275,44 +224,40 @@ export { defaultBacktestParams };
 
 /**
  * Watchlist = the front (non-tender) contract per product. There is no dedicated
- * route for it: live mode projects it from GET /api/contracts, demo mode uses
- * the precomputed fixture so both branches show the same shape.
+ * route for it: the access layer projects it from GET /api/contracts so the
+ * shape stays identical everywhere.
  */
 export async function fetchWatchlist(): Promise<WatchRow[]> {
-  if (isLiveApi) {
-    const contracts = await fetchContracts({ sort: "expiry" });
-    const byProduct = new Map<string, Contract>();
-    for (const contract of contracts) {
-      if (contract.daysToExpiry < 6) continue;
-      const current = byProduct.get(contract.productId);
-      if (!current || contract.daysToExpiry < current.daysToExpiry) {
-        byProduct.set(contract.productId, contract);
-      }
+  const contracts = await fetchContracts({ sort: "expiry" });
+  const byProduct = new Map<string, Contract>();
+  for (const contract of contracts) {
+    if (contract.daysToExpiry < 6) continue;
+    const current = byProduct.get(contract.productId);
+    if (!current || contract.daysToExpiry < current.daysToExpiry) {
+      byProduct.set(contract.productId, contract);
     }
-    return [...byProduct.values()]
-      .map((contract) => {
-        const spec = productSpec(contract.productId);
-        const changeAbs = contract.settle - contract.prevSettle;
-        return {
-          productId: contract.productId,
-          name: spec.name,
-          contractCode: contract.contractCode,
-          expiry: contract.expiry,
-          settle: contract.settle,
-          changeAbs,
-          changePct: contract.prevSettle === 0 ? 0 : (changeAbs / contract.prevSettle) * 100,
-          finePerGram: contract.finePerGram,
-          volumeLots: contract.volumeLots,
-          openInterestLots: contract.openInterestLots,
-          daysToExpiry: contract.daysToExpiry,
-          liquidity: spec.liquidity,
-          stale: contract.stale,
-        } satisfies WatchRow;
-      })
-      .sort((a, b) => a.daysToExpiry - b.daysToExpiry);
   }
-  await wait(DEMO_LATENCY_MS);
-  return getWatchlist();
+  return [...byProduct.values()]
+    .map((contract) => {
+      const spec = productSpec(contract.productId);
+      const changeAbs = contract.settle - contract.prevSettle;
+      return {
+        productId: contract.productId,
+        name: spec.name,
+        contractCode: contract.contractCode,
+        expiry: contract.expiry,
+        settle: contract.settle,
+        changeAbs,
+        changePct: contract.prevSettle === 0 ? 0 : (changeAbs / contract.prevSettle) * 100,
+        finePerGram: contract.finePerGram,
+        volumeLots: contract.volumeLots,
+        openInterestLots: contract.openInterestLots,
+        daysToExpiry: contract.daysToExpiry,
+        liquidity: spec.liquidity,
+        stale: contract.stale,
+      } satisfies WatchRow;
+    })
+    .sort((a, b) => a.daysToExpiry - b.daysToExpiry);
 }
 
 
@@ -324,16 +269,17 @@ export interface ContractHistoryPoint {
   stale: boolean;
 }
 
-/**
- * Contract-level history is not part of the documented endpoint list, so live
- * mode deliberately returns an empty series and the drawer shows its own empty
- * state instead of inventing a route.
- */
+/** Served by GET /api/contracts/{id}/history; empty until history exists. */
 export async function fetchContractHistory(contractId: string): Promise<ContractHistoryPoint[]> {
-  if (isLiveApi) {
-    await wait(DEMO_LATENCY_MS);
-    return [];
-  }
-  await wait(DEMO_LATENCY_MS);
-  return getContractHistory(contractId);
+  return getJson(
+    `/api/contracts/${encodeURIComponent(contractId)}/history`,
+    z.array(
+      z.object({
+        date: z.string(),
+        settle: z.number(),
+        volumeLots: z.number(),
+        stale: z.boolean(),
+      }),
+    ) as unknown as z.ZodType<ContractHistoryPoint[]>,
+  );
 }

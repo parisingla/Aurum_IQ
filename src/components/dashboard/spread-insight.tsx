@@ -12,7 +12,6 @@ import {
   YAxis,
 } from "recharts";
 import { Badge } from "@/components/ui/badge";
-import { DATA_MODE } from "@/lib/api";
 import type { SpreadSeries } from "@/lib/types";
 
 const toPct = (bps: number) => bps / 100;
@@ -84,8 +83,8 @@ export function SpreadInsight({ series }: { series: SpreadSeries }) {
             Relative price between {series.summary.legA} and {series.summary.legB}.
           </p>
         </div>
-        <Badge tone={DATA_MODE === "api" ? "info" : "gold"} className="shrink-0 rounded-full px-2.5">
-          {DATA_MODE === "api" ? "Live API" : "Illustrative Data"}
+        <Badge tone="info" className="shrink-0 rounded-full px-2.5">
+          Uploaded settlements
         </Badge>
       </div>
 

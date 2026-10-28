@@ -105,7 +105,7 @@ export const trustCheckSchema = z.object({
 export const dataStatusSchema: z.ZodType<DataStatus> = z.object({
   asOf: isoDate,
   generatedAt: z.string(),
-  source: z.enum(["demo", "api"]),
+  source: z.enum(["api", "empty"]),
   rows: z.number().int(),
   contracts: z.number().int(),
   trustScore: z.number().min(0).max(100),

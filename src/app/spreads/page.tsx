@@ -5,7 +5,7 @@ import { PanelSkeleton } from "@/components/ui/states";
 
 export const metadata = {
   title: "Spreads",
-  description: "Purity- and carry-adjusted relative value for MCX gold futures pairs — demo data.",
+  description: "Purity- and carry-adjusted relative value for MCX gold futures pairs.",
 };
 
 export default function SpreadsPage() {

@@ -4,7 +4,6 @@ import {
   createContext,
   useCallback,
   useContext,
-  useEffect,
   useMemo,
   useRef,
   useState,
@@ -125,24 +124,4 @@ export function useToast(): ToastApi {
   const context = useContext(ToastContext);
   if (!context) throw new Error("useToast must be used inside <ToastProvider>");
   return context;
-}
-
-/** Announces the demo-data disclaimer once per session, politely. */
-export function useDemoNotice(): void {
-  const { push } = useToast();
-  const shown = useRef(false);
-  useEffect(() => {
-    if (shown.current) return;
-    shown.current = true;
-    const timer = setTimeout(() => {
-      push({
-        tone: "info",
-        title: "Demo data — not a live feed",
-        description:
-          "Every price, volume and signal here comes from a seeded fixture dataset as of 19 Oct 2026.",
-        durationMs: 6500,
-      });
-    }, 1400);
-    return () => clearTimeout(timer);
-  }, [push]);
 }

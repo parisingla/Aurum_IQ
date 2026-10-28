@@ -81,7 +81,8 @@ export interface TrustCheck {
 export interface DataStatus {
   asOf: string;
   generatedAt: string;
-  source: "demo" | "api";
+  /** "api" = real uploaded settlements; "empty" = nothing uploaded yet. */
+  source: "api" | "empty";
   rows: number;
   contracts: number;
   trustScore: number;

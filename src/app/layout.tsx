@@ -32,7 +32,7 @@ export const metadata: Metadata = {
     template: "%s · Aurum IQ",
   },
   description:
-    "A relative-value research terminal for MCX gold futures: purity- and carry-adjusted spreads, cost-gated signals and walk-forward backtests on demo data.",
+    "A relative-value research terminal for MCX gold futures: purity- and carry-adjusted spreads, cost-gated signals and walk-forward backtests on the settlements you upload.",
   applicationName: "Aurum IQ",
   robots: { index: false, follow: false },
 };

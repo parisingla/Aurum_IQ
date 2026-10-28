@@ -5,7 +5,7 @@ import { PanelSkeleton } from "@/components/ui/states";
 
 export const metadata = {
   title: "Backtesting Studio",
-  description: "Walk-forward backtest lab with cost analysis for MCX gold spreads — demo data.",
+  description: "Walk-forward backtest lab with cost analysis for MCX gold spreads.",
 };
 
 export default function BacktestingPage() {

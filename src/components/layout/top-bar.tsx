@@ -2,8 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { AlertTriangle, Bell, CheckCircle2, Menu, Upload } from "lucide-react";
-import { DATA_MODE } from "@/lib/api";
 import { cn } from "@/lib/cn";
+import type { DataStatus } from "@/lib/types";
 
 export interface AppNotification {
   id: string;
@@ -18,6 +18,8 @@ interface TopBarProps {
   onMenu: () => void;
   onUpload?: () => void;
   notifications?: AppNotification[];
+  /** Engine dataset source — null while the status request hasn't answered. */
+  dataSource?: DataStatus["source"] | null;
 }
 
 function NotificationBell({ notifications }: { notifications: AppNotification[] }) {
@@ -102,7 +104,14 @@ function NotificationBell({ notifications }: { notifications: AppNotification[] 
   );
 }
 
-export function TopBar({ title, subtitle, onMenu, onUpload, notifications = [] }: TopBarProps) {
+export function TopBar({
+  title,
+  subtitle,
+  onMenu,
+  onUpload,
+  notifications = [],
+  dataSource = null,
+}: TopBarProps) {
   return (
     <header className="sticky top-0 z-30 bg-ivory-50/90 backdrop-blur-sm">
       <div className="flex h-16 items-center gap-3 px-5 sm:px-8">
@@ -133,12 +142,12 @@ export function TopBar({ title, subtitle, onMenu, onUpload, notifications = [] }
                 "hidden text-[0.6875rem] font-medium uppercase tracking-[0.14em] text-secondary-text md:inline",
               )}
               title={
-                DATA_MODE === "api"
+                dataSource === "api"
                   ? "Figures are served by the FastAPI engine."
-                  : "Every figure on this site is fixture data, not a live MCX feed."
+                  : "No dataset loaded — upload a bhavcopy CSV to begin."
               }
             >
-              {DATA_MODE === "api" ? "Live API" : "Illustrative demo data"}
+              {dataSource === "api" ? "Live API" : dataSource === "empty" ? "No dataset — upload CSV" : "Engine not connected"}
             </span>
           )}
 
