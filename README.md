@@ -126,6 +126,10 @@ npm run dev
 
 ## Deploy on Vercel
 
+### Real data out of the box
+
+The engine ships with a real MCX bhavcopy bundled at `api/data/seed/BhavCopyDateWise_27102026.csv` (27 Oct 2026, all five gold products). A freshly deployed — or restarted, or recycled — instance serves these real settlements immediately, before any upload: `GET /api/data/status` reports `source: "api"`, so every page shows **LIVE MCX DATA** and the assistant's *Analyze my dataset* button is ready without you touching an upload. Later uploads (a new trading day) replace the working set; `POST /api/datasets/reset` returns to the bundled file. The synthetic seed remains only as a fallback for when the bundled file is absent.
+
 One import, one project. The Next.js app is the deployment; the engine rides along as Python serverless functions from `api/` (Vercel detects `api/index.py` + root `requirements.txt` + `.python-version`).
 
 1. Push the repo to GitHub, then import it at [vercel.com/new](https://vercel.com/new).
