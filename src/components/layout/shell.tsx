@@ -11,11 +11,11 @@ import {
 } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Upload, RefreshCw } from "lucide-react";
+import { Upload, RefreshCw, CheckCircle2 } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { MarbleArtwork } from "@/components/ui/marble";
 import { cn } from "@/lib/cn";
-import { DATA_MODE, fetchDataStatus, fetchAlerts } from "@/lib/api";
+import { API_BASE_URL, DATA_MODE, fetchDataStatus, fetchAlerts } from "@/lib/api";
 import { useAsync } from "@/lib/hooks";
 import { titleForPath } from "./nav-items";
 import { SiteFooter } from "./footer";
@@ -58,23 +58,51 @@ export function useUpload(): () => void {
 /* Upload Dataset Component                                                    */
 /* -------------------------------------------------------------------------- */
 
+/** FastAPI 409/422 detail is a string or {message, errors[]} — flatten it. */
+async function uploadErrorMessage(response: Response): Promise<string> {
+  try {
+    const body: unknown = await response.json();
+    const detail = (body as { detail?: unknown }).detail;
+    if (typeof detail === "string") return detail;
+    if (detail && typeof detail === "object") {
+      const { message, errors } = detail as { message?: string; errors?: string[] };
+      return [message, ...(errors ?? []).slice(0, 3)].filter(Boolean).join(" — ");
+    }
+  } catch {
+    /* non-JSON error body */
+  }
+  return `Upload failed (HTTP ${response.status}). Is the engine deployed?`;
+}
+
 function UploadDataset({ onClose }: { onClose: () => void }) {
   const [dragActive, setDragActive] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [summary, setSummary] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const { refresh } = useShell();
 
   const handleUpload = async (file: File) => {
     setUploading(true);
     setError(null);
-    
+    setSummary(null);
+
     try {
-      // Simulate upload for demo mode
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      // In a real implementation, this would call the backend API
-      console.log("Uploaded file:", file.name, "Size:", file.size);
-      
-      onClose();
+      const form = new FormData();
+      form.append("file", file, file.name);
+      const response = await fetch(`${API_BASE_URL}/api/datasets/upload`, {
+        method: "POST",
+        body: form,
+        cache: "no-store",
+      });
+      if (!response.ok) throw new Error(await uploadErrorMessage(response));
+      const payload = (await response.json()) as {
+        dataset: { rows: number; fromDate: string; toDate: string };
+      };
+      setSummary(
+        `Loaded ${payload.dataset.rows.toLocaleString()} rows · ${payload.dataset.fromDate} → ${payload.dataset.toDate}`,
+      );
+      refresh();
+      setTimeout(onClose, 1200);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Upload failed");
     } finally {
@@ -130,6 +158,15 @@ function UploadDataset({ onClose }: { onClose: () => void }) {
         </div>
       )}
 
+      {summary && !error && (
+        <div className="rounded-xs border border-up/30 bg-up/10 px-3 py-2">
+          <p className="flex items-center gap-1.5 text-xs text-up">
+            <CheckCircle2 className="size-3.5" aria-hidden="true" />
+            {summary}
+          </p>
+        </div>
+      )}
+
       {uploading && (
         <div className="flex items-center gap-2">
           <RefreshCw className="size-3 animate-spin text-metallic-gold" />
@@ -140,9 +177,10 @@ function UploadDataset({ onClose }: { onClose: () => void }) {
       <div className="space-y-1.5 text-xs text-secondary-text">
         <p className="font-mono text-ocean-navy">Expected format:</p>
         <ul className="ml-3 space-y-1">
-          <li>• Symbol, Trade Date, Expiry, Open, High, Low, Close, Settle, Volume, OI</li>
-          <li>• MCX bhavcopy standard columns</li>
-          <li>• Date format: DD-MMM-YYYY or YYYY-MM-DD</li>
+          <li>• Date-wise MCX bhavcopy (27 Oct 2026 style) or the column layout below</li>
+          <li>• Symbol, Trade Date, Expiry, Open, High, Low, Close, Volume, OI</li>
+          <li>• Dates: DD-MMM-YYYY, YYYY-MM-DD, DD/MM/YYYY, or "27 Oct 2026"</li>
+          <li>• Option-chain rows (CE/PE) are skipped automatically</li>
         </ul>
       </div>
     </div>

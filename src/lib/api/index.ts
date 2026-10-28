@@ -55,6 +55,9 @@ const RAW_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL ?? "")
 const API_BASE = RAW_BASE === "same-origin" || RAW_BASE === "/api" ? "" : RAW_BASE;
 const DEMO_LATENCY_MS = Number(process.env.NEXT_PUBLIC_DEMO_LATENCY_MS ?? 450);
 
+/** Base for direct calls outside the typed access layer (multipart upload). */
+export const API_BASE_URL = API_BASE;
+
 export const isLiveApi = RAW_BASE.length > 0;
 export const DATA_MODE: "demo" | "api" = isLiveApi ? "api" : "demo";
 
