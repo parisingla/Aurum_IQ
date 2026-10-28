@@ -1,14 +1,16 @@
 # dependencies
-/node_modules
-/.pnp
+node_modules/
+.pnp
 .pnp.*
 
-# next.js
-/.next/
-/out/
+# next.js (frontend service)
+frontend/.next/
+frontend/out/
+out/
+build/
 
 # production
-/build
+build
 
 # misc
 .DS_Store
@@ -27,12 +29,12 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# editor
-.idea
-.vscode
+# vercel
+.vercel/
 
-# python backend
+# python backend service
 .venv/
+venv/
 __pycache__/
 *.pyc
 .pytest_cache/
