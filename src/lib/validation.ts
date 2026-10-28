@@ -116,6 +116,22 @@ export const dataStatusSchema: z.ZodType<DataStatus> = z.object({
   toDate: isoDate.optional(),
 });
 
+export const assistantResponseSchema = z.object({
+  answerId: z.string(),
+  question: z.string(),
+  createdAt: z.string(),
+  confidence: z.number().min(0).max(1),
+  answer: z.string(),
+  citations: z.array(
+    z.object({
+      label: z.string(),
+      methodologyId: z.string().optional(),
+    }),
+  ),
+  dataNotes: z.array(z.string()),
+  mode: z.enum(["template", "llm"]).default("template"),
+});
+
 export const contractSchema: z.ZodType<Contract> = z.object({
   id: z.string(),
   symbol: productIdSchema,

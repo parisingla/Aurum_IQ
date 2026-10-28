@@ -2,104 +2,125 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Send, Sparkles } from "lucide-react";
-import { PageShell } from "@/components/layout/shell";
+import { FileSearch, Send, Sparkles } from "lucide-react";
+import { PageShell, useRefreshNonce } from "@/components/layout/shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Panel } from "@/components/ui/panel";
+import { DATA_MODE, askAssistant, fetchDataStatus, isLiveApi } from "@/lib/api";
+import { useAsync } from "@/lib/hooks";
 
 interface Message {
   role: "user" | "assistant";
   content: string;
   timestamp: Date;
+  mode?: "template" | "llm" | "error";
 }
+
+/** The grounded answers carry markdown bold + ASCII tables — render plainly. */
+function plainAnswer(text: string): string {
+  return text.replace(/\*\*/g, "");
+}
+
+/** The one-click analysis: what does the loaded dataset actually say? */
+const RESULT_QUESTION =
+  "Analyze the currently loaded dataset end to end: what does the data say about the term structure, the monitored spreads, whether any edge survives the cost hurdle, and what the data-quality checks warn about.";
 
 export function AIAssistant() {
   const searchParams = useSearchParams();
   const carriedQuestion = searchParams.get("q") ?? "";
+  const refreshNonce = useRefreshNonce();
   const [query, setQuery] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
+  const [resultBusy, setResultBusy] = useState(false);
   const autoRan = useRef(false);
 
-  const generateDemoResponse = (question: string): string => {
-    const q = question.toLowerCase();
+  // Live dataset loaded? (source flips to "api" after a successful upload)
+  const status = useAsync(() => (isLiveApi ? fetchDataStatus() : Promise.resolve(null)), [refreshNonce]);
+  const datasetLoaded = isLiveApi && status.data?.source === "api";
 
-    if (q.includes("spread") || q.includes("relative value")) {
-      return "Based on the current fixtures, the GOLDPETAL vs GOLDM spread shows a residual basis of +12.5 bps after adjusting for purity and carry. The z-score is 2.4, which is above the entry threshold of 2.0. However, after accounting for round-trip costs of 6.2 bps, the expected edge is 3.8 bps — within the cost hurdle but not strongly gated.";
+  const runQuery = async (content: string, options: { useLlm?: boolean; busySetter?: (busy: boolean) => void } = {}) => {
+    const busy = options.busySetter ?? setLoading;
+    setMessages((prev) => [...prev, { role: "user", content, timestamp: new Date() }]);
+    busy(true);
+
+    try {
+      if (!isLiveApi) {
+        await new Promise((resolve) => setTimeout(resolve, 900));
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            timestamp: new Date(),
+            mode: "template",
+            content:
+              "I'm running on bundled demo fixtures in this mode — no engine, no LLM. Start the engine and set NEXT_PUBLIC_API_BASE_URL=same-origin, then ask again: the grounded assistant (and the AI narrative) work against the live dataset.",
+          },
+        ]);
+        return;
+      }
+      const response = await askAssistant(content, { useLlm: options.useLlm });
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: plainAnswer(response.answer),
+          timestamp: new Date(),
+          mode: response.mode,
+        },
+      ]);
+    } catch (err) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: err instanceof Error ? err.message : "The assistant could not answer.",
+          timestamp: new Date(),
+          mode: "error",
+        },
+      ]);
+    } finally {
+      busy(false);
     }
-
-    if (q.includes("carry") || q.includes("term structure")) {
-      return "The term structure analysis indicates the curve is in mild contango, with an implied carry of approximately 6.50% annualized for the front-to-second month roll. This is close to the reference MIBOR rate of 6.60%, suggesting the curve is fairly priced for carry.";
-    }
-
-    if (q.includes("signal") || q.includes("alert")) {
-      return "Currently, there are 2 armed signals out of 7 open alerts. The others were blocked by the cost gate — the expected capture after costs did not exceed the round-trip threshold. The largest residual is in GOLDGUINEA vs GOLDM at 18.3 bps, but this is a thin contract with high slippage.";
-    }
-
-    if (q.includes("cost") || q.includes("brokerage")) {
-      return "Round-trip costs include: brokerage (capped at ₹20 per order), CTT (0.01%), stamp duty (0.002%), MCX transaction charge, SEBI fee, GST (18% on brokerage + transaction charges), and modeled bid-ask slippage. For GOLDM vs GOLDPETAL, total cost is approximately 6.2 bps per round trip.";
-    }
-
-    if (q.includes("how is this spread calculated") || q.includes("normalis") || q.includes("normaliz")) {
-      return "Every contract is restated to ₹ per gram of fine gold: settlement ÷ quoted grams ÷ fineness. Purity (999 vs 995) and carry across the expiry gap are removed as explicit terms, and whatever remains is the residual you see in the Spread Lab.";
-    }
-
-    if (q.includes("why was this observation flagged") || q.includes("flagged")) {
-      return "An observation is flagged when its lagged z-score crosses the ±2σ entry gate AND the expected capture after costs still clears the round-trip toll — and it persists for two sessions. Unusual on its own is never enough.";
-    }
-
-    if (q.includes("transaction cost") || q.includes("costs affect")) {
-      return "The cost gate is the honesty layer: expected edge = 0.8 × |residual| − round trip. If that number is not positive, the observation stays an observation — no alert fires. Many statistically unusual spreads die exactly here.";
-    }
-
-    return "I'm operating in demo mode with fixture data from October 19, 2026. I can explain spreads, carry, signals, costs, and methodology. Please note that all figures are synthetic — this is a research prototype, not investment advice. What specific aspect would you like to explore?";
-  };
-
-  const runQuery = (content: string) => {
-    const userMessage: Message = {
-      role: "user",
-      content,
-      timestamp: new Date(),
-    };
-
-    setMessages(prev => [...prev, userMessage]);
-    setLoading(true);
-
-    // Simulated response for demo mode
-    setTimeout(() => {
-      const assistantMessage: Message = {
-        role: "assistant",
-        content: generateDemoResponse(content),
-        timestamp: new Date(),
-      };
-      setMessages(prev => [...prev, assistantMessage]);
-      setLoading(false);
-    }, 1000);
   };
 
   // A question carried from the Overview "Ask AURUM IQ" panel runs once on arrival.
   useEffect(() => {
     if (autoRan.current || !carriedQuestion.trim()) return;
     autoRan.current = true;
-    runQuery(carriedQuestion.trim());
+    void runQuery(carriedQuestion.trim());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [carriedQuestion]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!query.trim() || loading) return;
-
     const content = query.trim();
     setQuery("");
-    runQuery(content);
+    await runQuery(content);
+  };
+
+  const runResult = async () => {
+    if (resultBusy) return;
+    await runQuery(RESULT_QUESTION, { useLlm: true, busySetter: setResultBusy });
   };
 
   return (
     <PageShell
       title="AI Research Assistant"
-      subtitle="Ask questions about MCX gold spreads, carry, signals, and methodology. Demo mode with fixture data."
-      actions={<Badge tone="warning">DEMO MODE</Badge>}
+      subtitle={
+        datasetLoaded
+          ? "Grounded in your loaded dataset — every number comes from the engine, the narrative from the LLM."
+          : "Ask questions about MCX gold spreads, carry, signals, and methodology."
+      }
+      actions={
+        datasetLoaded ? (
+          <Badge tone="info">LIVE · AI ANALYSIS READY</Badge>
+        ) : (
+          <Badge tone="warning">DEMO MODE</Badge>
+        )
+      }
     >
       <div className="grid gap-4 lg:grid-cols-3">
         {/* Chat panel */}
@@ -107,19 +128,21 @@ export function AIAssistant() {
           <Panel
             eyebrow="Research assistant"
             title="Ask about relative value"
-            description="Grounded in the current fixture set — no price forecasts or investment advice."
+            description="Grounded in the running engine — no price forecasts or investment advice."
           >
             <div className="space-y-4">
               {/* Messages */}
               <div className="min-h-[400px] max-h-[600px] overflow-y-auto scroll-thin space-y-3">
                 {messages.length === 0 ? (
                   <div className="flex flex-col items-center justify-center h-[400px] text-center">
-                    <Sparkles className="size-12 text-gold mb-4" />
+                    <Sparkles className="size-12 text-gold mb-4" aria-hidden="true" />
                     <p className="text-sm text-ash">
                       Ask about spreads, carry, signals, costs, or methodology
                     </p>
                     <p className="text-xs text-dim mt-2">
-                      Example: &quot;What&apos;s the current GOLDPETAL vs GOLDM spread?&quot;
+                      {datasetLoaded
+                        ? "Your dataset is live — press “Analyze my dataset” for the full read."
+                        : "Example: “What's the current GOLDPETAL vs GOLDM spread?”"}
                     </p>
                   </div>
                 ) : (
@@ -129,13 +152,18 @@ export function AIAssistant() {
                       className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
                     >
                       <div
-                        className={`max-w-[80%] rounded-md px-3 py-2 ${
+                        className={`max-w-[85%] rounded-md px-3 py-2 ${
                           msg.role === "user"
                             ? "bg-gold/20 text-bone"
                             : "bg-ink-800 text-ash border border-line"
                         }`}
                       >
-                        <p className="text-sm leading-relaxed">{msg.content}</p>
+                        {msg.role === "assistant" && msg.mode === "llm" && (
+                          <p className="mb-1.5 font-mono text-[0.625rem] uppercase tracking-[0.12em] text-gold">
+                            AI analysis · grounded in engine facts
+                          </p>
+                        )}
+                        <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.content}</p>
                         <p className="text-[0.625rem] text-dim mt-1">
                           {msg.timestamp.toLocaleTimeString()}
                         </p>
@@ -178,8 +206,36 @@ export function AIAssistant() {
           </Panel>
         </div>
 
-        {/* Quick questions */}
+        {/* Quick actions */}
         <div className="space-y-4">
+          <Panel
+            eyebrow="Dataset analysis"
+            title={datasetLoaded ? "Result" : "Load a CSV first"}
+            description={
+              datasetLoaded
+                ? "One click — the LLM narrates what your loaded data shows."
+                : "Upload a bhavcopy CSV (top bar), then this button runs the analysis."
+            }
+          >
+            <Button
+              size="md"
+              variant={datasetLoaded ? "primary" : "outline"}
+              disabled={!datasetLoaded || resultBusy}
+              onClick={runResult}
+              icon={<FileSearch className="size-4" aria-hidden="true" />}
+              className="w-full"
+            >
+              {resultBusy ? "Analyzing…" : "Analyze my dataset"}
+            </Button>
+            {!datasetLoaded && (
+              <p className="mt-2 text-[0.6875rem] text-dim leading-snug">
+                {isLiveApi
+                  ? "Waiting for an upload — the engine is still on the synthetic seed."
+                  : "Connect the engine (NEXT_PUBLIC_API_BASE_URL) and upload a CSV."}
+              </p>
+            )}
+          </Panel>
+
           <Panel eyebrow="Quick questions" title="Common queries">
             <div className="space-y-2">
               {[
@@ -204,7 +260,7 @@ export function AIAssistant() {
             <ul className="space-y-2 text-xs text-ash">
               <li className="flex items-start gap-2">
                 <span className="text-gold mt-0.5">•</span>
-                <span>Only answers from the fixture set — no external data</span>
+                <span>Only answers from the running engine — no external data</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-gold mt-0.5">•</span>
@@ -216,7 +272,11 @@ export function AIAssistant() {
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-gold mt-0.5">•</span>
-                <span>Demo mode: responses are templates, not LLM-generated</span>
+                <span>
+                  {DATA_MODE === "api"
+                    ? "AI narrative (OpenRouter) when enabled; template fallback otherwise"
+                    : "Demo mode: canned responses until the engine is connected"}
+                </span>
               </li>
             </ul>
           </Panel>

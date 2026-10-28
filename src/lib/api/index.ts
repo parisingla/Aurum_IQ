@@ -23,6 +23,7 @@ import {
 } from "@/lib/mock/market";
 import {
   alertSchema,
+  assistantResponseSchema,
   backtestResultSchema,
   contractQuerySchema,
   contractSchema,
@@ -249,6 +250,20 @@ export async function fetchBacktest(id: string): Promise<BacktestResult> {
   const found = getBacktest(id);
   if (found) return found;
   throw new ApiError(`No backtest with id ${id} in this session.`, `/api/backtests/${id}`);
+}
+
+/**
+ * AI mode: ask the engine's grounded assistant. `useLlm` requests the LLM
+ * narrative on top of the computed facts; the engine falls back to its
+ * deterministic templates when the LLM is unreachable or no key is set.
+ */
+export async function askAssistant(
+  question: string,
+  options: { useLlm?: boolean } = {},
+): Promise<z.infer<typeof assistantResponseSchema>> {
+  if (isLiveApi) return postJson("/api/assistant/query", { question, useLlm: options.useLlm ?? false }, assistantResponseSchema);
+  await wait(DEMO_LATENCY_MS);
+  throw new ApiError("The assistant needs a live engine (NEXT_PUBLIC_API_BASE_URL).", "/api/assistant/query");
 }
 
 export { defaultBacktestParams };
