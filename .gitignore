@@ -38,6 +38,6 @@ __pycache__/
 *.pyc
 .pytest_cache/
 
-# runtime uploads (the bundled seed bhavcopy in api/data/seed/ stays tracked)
+# runtime uploads (the engine starts empty; only user-uploaded CSVs land here)
 api/data/raw/
 api/data/datasets.json

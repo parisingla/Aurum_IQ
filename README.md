@@ -6,7 +6,7 @@ Team **TimelessXO**, built for the *Hack in Hills* track **Commodity Derivatives
 
 MCX lists gold in several contract sizes: GOLD, GOLDM, GOLDTEN, GOLDGUINEA and GOLDPETAL. All of them track the same metal, but they differ in lot size, quotation unit, purity and expiry date. AURUM IQ puts every contract on one fine-gold basis and explains the gap between any two of them term by term. It sends an alert only when a gap is large enough to survive real trading costs. If no edge survives, it reports that too.
 
-> **Status:** frontend prototype. Every screen runs on bundled, deterministic **demo data**. The numbers are illustrative and are **not MCX results**. A live backend can be connected with one environment variable (see [Data modes](#data-modes)).
+> **Status:** upload-driven research terminal. The engine ships with **no market data at all** — until you upload a MCX date-wise bhavcopy CSV, every page shows an upload gate with zero invented numbers. After the upload, all analytics (contracts, spreads, term structure, backtests, alerts, AI assistant) run on the **real settlements you provided**. Deployment guide below (see [Deploy on Vercel](#deploy-on-vercel)).
 
 ---
 
@@ -85,13 +85,12 @@ src/                      # Next.js app (public)
     ├── products.ts       # Contract specifications
     ├── analytics.ts      # Spread explanation & decomposition
     ├── validation.ts     # Zod schemas
-    ├── api/              # Single data-access layer (demo ↔ live)
-    └── mock/             # Seeded, deterministic demo market, alerts, backtests
+    ├── api/              # Single data-access layer — live engine only, no fixtures
 public/
 api/                      # FastAPI engine → Vercel Python serverless functions
 ├── index.py              # Vercel entrypoint (create_app)
 ├── app/                  # Routes, engine, assistant, methodology
-└── data/                 # Seed datasets.json + raw uploads
+└── data/                 # Runtime datasets.json + raw uploads (gitignored)
 tests/                    # pytest suite (engine + API)
 scripts/run_backend.py    # local uvicorn entry for the engine
 research_notes/           # Source research (dataset, specs, methods, market, stack)
@@ -126,15 +125,15 @@ npm run dev
 
 ## Deploy on Vercel
 
-### Real data out of the box
+### Empty until you upload — by design
 
-The engine ships with a real MCX bhavcopy bundled at `api/data/seed/BhavCopyDateWise_27102026.csv` (27 Oct 2026, all five gold products). A freshly deployed — or restarted, or recycled — instance serves these real settlements immediately, before any upload: `GET /api/data/status` reports `source: "api"`, so every page shows **LIVE MCX DATA** and the assistant's *Analyze my dataset* button is ready without you touching an upload. Later uploads (a new trading day) replace the working set; `POST /api/datasets/reset` returns to the bundled file. The synthetic seed remains only as a fallback for when the bundled file is absent.
+The engine ships with **no bundled or synthetic market**. On a cold start `GET /api/data/status` reports `source: "empty"`, every analytics route answers **503**, and the UI shows a full-page upload gate that lists exactly what the dataset unlocks (purity-normalised spreads, residual/carry/z-score decomposition, net-of-cost edge, walk-forward backtests with DSR/PBO). Upload a MCX date-wise bhavcopy CSV in-app and the same endpoints go live with those real settlements — nothing is invented between the CSV and the screen. `POST /api/datasets/reset` clears back to the empty gate.
 
 One import, one project. The Next.js app is the deployment; the engine rides along as Python serverless functions from `api/` (Vercel detects `api/index.py` + root `requirements.txt` + `.python-version`).
 
 1. Push the repo to GitHub, then import it at [vercel.com/new](https://vercel.com/new).
 2. Keep **Root Directory** at the repository root; the framework preset is Next.js (root `vercel.json`).
-3. In Project → Settings → Environment Variables, add `NEXT_PUBLIC_API_BASE_URL = same-origin` (Production, Preview and Development). This switches every page from demo fixtures to the live engine.
+3. In Project → Settings → Environment Variables, add `NEXT_PUBLIC_API_BASE_URL = same-origin` (Production, Preview and Development). The pages then call the engine same-origin; without it every request fails validation against the Next server and the gate shows **Engine not connected**.
 4. Deploy. Every preview deployment gets the same treatment.
 
 For the CLI instead: `vercel link`, then `vercel --prod` from the repository root.
@@ -151,13 +150,13 @@ To enable on Vercel: Project → **Storage** → **Upstash Redis** → create (f
 
 Configure with `OPENROUTER_API_KEY` (get one at openrouter.ai/keys) and optionally `OPENROUTER_MODEL`. The default chain tries `qwen/qwen3-30b-a3b-instruct-2507` (OpenRouter deprecated the Qwen `:free` tier in Oct 2026) and falls through to a live zero-cost model. In the UI, uploading a CSV enables the **“Analyze my dataset”** button on the AI Research Assistant page — one click, full read of the loaded data.
 
-## Data modes
+## Data flow
 
-All frontend data goes through `src/lib/api/index.ts`.
+All frontend data goes through `src/lib/api/index.ts` — every call is a real engine request, validated with Zod before it reaches a component. There are no fixtures and no demo branch.
 
-- **Demo** (default): leave `NEXT_PUBLIC_API_BASE_URL` unset. Seeded fixtures answer each call after `NEXT_PUBLIC_DEMO_LATENCY_MS` (default 450 ms), so loading and error states run as real code paths.
-- **Live — same origin (recommended):** set `NEXT_PUBLIC_API_BASE_URL=same-origin`. Calls go browser → same-origin `/api/*` → rewrites → FastAPI engine (locally `127.0.0.1:8000`, on Vercel the serverless function). Each response is validated with Zod.
-- **Live — external backend:** set `NEXT_PUBLIC_API_BASE_URL` to a full URL (e.g. `http://127.0.0.1:8000`).
+- **Same origin (recommended):** keep `NEXT_PUBLIC_API_BASE_URL=same-origin` (or unset). Calls go browser → same-origin `/api/*` → rewrites → FastAPI engine (locally `127.0.0.1:8000` via `scripts/run_backend.py`, on Vercel the serverless function).
+- **External backend:** set `NEXT_PUBLIC_API_BASE_URL` to a full URL (e.g. `http://127.0.0.1:8000`).
+- **Engine unreachable:** panels and the upload gate degrade to **Engine not connected** — no placeholder data is ever rendered.
 
 Routes served by the backend:
 
@@ -171,7 +170,7 @@ POST /api/backtests
 GET  /api/backtests/:id
 ```
 
-Plus: `/api/instruments`, `/api/spot`, `/api/watchlist`, `/api/prices`, `/api/contracts/{id}/history`,
+Plus: `/api/instruments`, `/api/watchlist`, `/api/prices`, `/api/contracts/{id}/history`,
 `/api/analytics/front-series`, `/api/methodology`, `/api/assistant/query`, `/api/health`,
 and dataset upload (`POST /api/datasets/upload`, `GET /api/datasets`, `POST /api/datasets/reset`).
 
@@ -185,9 +184,9 @@ and dataset upload (`POST /api/datasets/upload`, `GET /api/datasets`, `POST /api
 
 ## Roadmap
 
-- **Prototype:** Bhavcopy ingestion with checks, contract metadata, normalization. *(Done in the UI on demo data.)*
-- **Demo and repo:** spread and z-score alerts, walk-forward backtest net of costs.
-- **Finale:** live backend, expiry-aware analysis, evidence-backed explanations.
+- **Prototype:** bhavcopy ingestion with checks, contract metadata, normalization, all served from the uploaded CSV. *(Done.)*
+- **Engine:** spread and z-score alerts, walk-forward backtests net of costs — computed from the upload. *(Done.)*
+- **Finale:** scheduled ingestion of daily bhavcopy, expiry-aware analysis, richer evidence-backed explanations.
 - **Later:** silver, crude and base metals; licensed intraday and bid-ask data.
 
 ## Team
@@ -198,4 +197,4 @@ and dataset upload (`POST /api/datasets/upload`, `GET /api/datasets`, `POST /api
 
 ---
 
-*This is an analytical prototype, not investment advice. Demo figures are synthetic.*
+*This is an analytical prototype, not investment advice. All figures come from the user's uploaded bhavcopy CSV — the terminal serves nothing else.*
