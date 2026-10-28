@@ -68,50 +68,93 @@ Leg A and leg B must be different contracts.
 
 ## Project structure
 
+One repository deploys as **one Vercel project** with two services (root `vercel.json`):
+
 ```
-src/
-├── app/                 # Routes: overview, contracts, spreads, signals, research
-├── components/
-│   ├── charts/          # Spread, term structure, equity, z-gauge, sparkline…
-│   ├── contracts/       # Contract explorer
-│   ├── spreads/         # Spread lab, leg cards, calculation explainer
-│   ├── signals/         # Alert cards, backtest panel
-│   ├── overview/        # Stat tiles, watchlist
-│   ├── layout/          # Shell, side nav, top bar, footer
-│   └── ui/              # Primitives (button, panel, modal, toast…)
-└── lib/
-    ├── products.ts      # Contract specifications
-    ├── analytics.ts     # Spread explanation & decomposition
-    ├── validation.ts    # Zod schemas
-    ├── api/             # Single data-access layer (demo ↔ live)
-    └── mock/            # Seeded, deterministic demo market, alerts, backtests
+frontend/                # Next.js service (public)
+├── src/
+│   ├── app/             # Routes: overview, contracts, spreads, signals, research
+│   │   └── api/backend/ # Same-origin bridge to the FastAPI service
+│   ├── components/
+│   │   ├── charts/      # Spread, term structure, equity, z-gauge, sparkline…
+│   │   ├── contracts/   # Contract explorer
+│   │   ├── spreads/     # Spread lab, leg cards, calculation explainer
+│   │   ├── signals/     # Alert cards, backtest panel
+│   │   ├── overview/    # Stat tiles, watchlist
+│   │   ├── layout/      # Shell, side nav, top bar, footer
+│   │   └── ui/          # Primitives (button, panel, modal, toast…)
+│   └── lib/
+│       ├── products.ts  # Contract specifications
+│       ├── analytics.ts # Spread explanation & decomposition
+│       ├── validation.ts# Zod schemas
+│       ├── api/         # Single data-access layer (demo ↔ live)
+│       └── mock/        # Seeded, deterministic demo market, alerts, backtests
+└── public/
+backend/                 # FastAPI service (private; talks to the frontend via BACKEND_URL)
+├── app/                 # FastAPI app: routes, engine, assistant, methodology
+├── data/                # Seed datasets.json + raw uploads
+├── tests/               # pytest suite
+└── requirements.txt
 research_notes/          # Source research (dataset, specs, methods, market, stack)
 reports/                 # Consolidated deep-research report
+vercel.json              # Services config: both apps in one deployment
 ```
 
 ## Getting started
 
-Requires Node.js 22 or later.
+Requires Node.js 22 or later and Python 3.12+.
+
+### With the Vercel CLI (recommended — runs both services)
 
 ```bash
-npm install
-cp .env.example .env.local   # optional
-npm run dev                  # http://localhost:3000
+npm install --prefix frontend
+pip install -r backend/requirements.txt   # or uv/pip in a venv
+npm i -g vercel
+vercel link     # first time; then: vercel project update --framework services
+vercel dev -L   # one process serves Next.js + FastAPI, binding configured
+```
+
+### Classic two-terminal setup
+
+```bash
+# terminal 1 — frontend on http://localhost:3000 (demo data by default)
+npm install --prefix frontend
+npm run dev --prefix frontend
+
+# terminal 2 — backend engine on http://localhost:8000
+pip install -r backend/requirements.txt
+python backend/run.py
 ```
 
 | Script | What it does |
 |---|---|
-| `npm run dev` | Start the dev server |
+| `npm run dev` (in `frontend/`) | Start the dev server |
 | `npm run build` / `npm start` | Production build and serve |
 | `npm run lint` | Run ESLint |
 | `npm run typecheck` | Run `tsc --noEmit` |
+| `python backend/run.py` | Serve the FastAPI engine on `PORT` (default 8000) |
+| `pytest` (in `backend/`) | Engine and API tests |
+
+## Deploy on Vercel
+
+Both apps deploy together from the repository root — the Next.js frontend publicly, the FastAPI engine as a private internal service the frontend reaches through `BACKEND_URL` (the same-origin bridge route keeps the browser to one origin, so no CORS setup is needed).
+
+1. Push the repo to GitHub, then import it at [vercel.com/new](https://vercel.com/new).
+2. Vercel reads the root `vercel.json`; keep **Root Directory** at the repository root and the **Services** framework preset.
+3. In Project → Settings → Environment Variables, add `NEXT_PUBLIC_API_BASE_URL = /api/backend` (Production, Preview and Development). This switches every page from demo fixtures to the live engine.
+4. Deploy. Frontend and backend ship in every production and preview deployment.
+
+For the CLI instead: `vercel link`, then `vercel --prod` from the repository root.
 
 ## Data modes
 
-All data goes through `src/lib/api/index.ts`.
+All frontend data goes through `frontend/src/lib/api/index.ts`.
 
 - **Demo** (default): leave `NEXT_PUBLIC_API_BASE_URL` unset. Seeded fixtures answer each call after `NEXT_PUBLIC_DEMO_LATENCY_MS` (default 450 ms), so loading and error states run as real code paths.
-- **Live:** set `NEXT_PUBLIC_API_BASE_URL` to a backend that serves the routes below. Each response is validated with Zod.
+- **Live — same origin on Vercel:** set `NEXT_PUBLIC_API_BASE_URL=/api/backend`. Calls go browser → Next.js bridge route → FastAPI service (the binding supplies `BACKEND_URL` per deployment). Each response is validated with Zod.
+- **Live — external backend:** set `NEXT_PUBLIC_API_BASE_URL` to a full URL (e.g. `http://127.0.0.1:8000` while developing against `backend/run.py`).
+
+Routes served by the backend:
 
 ```
 GET  /api/data/status
@@ -122,6 +165,10 @@ GET  /api/alerts
 POST /api/backtests
 GET  /api/backtests/:id
 ```
+
+Plus: `/api/instruments`, `/api/spot`, `/api/watchlist`, `/api/prices`, `/api/contracts/{id}/history`,
+`/api/analytics/front-series`, `/api/methodology`, `/api/assistant/query`, `/api/health`,
+and dataset upload (`POST /api/datasets/upload`, `GET /api/datasets`, `POST /api/datasets/reset`).
 
 ## Data source and caveats
 
