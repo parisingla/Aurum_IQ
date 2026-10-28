@@ -10,12 +10,14 @@ def test_brokerage_is_capped_per_order() -> None:
     # Percentage cap (0.03% × 2 sides = 6 bps) binds below ₹66,667 notional.
     medium = brokerage_bps(50_000.0)
     assert abs(medium - 6.0) < 0.2
-    # Large notional → flat $20 x 2 dominates and shrinks with size.
+    # Large notional → flat ₹20 x 2 dominates and shrinks with size, in bps:
+    # 40 / 1_480_000 × 10_000 ≈ 0.27 bps.
     large = brokerage_bps(1_480_000.0)
-    assert abs(large - 40_00 / 1_480_000) < 0.05
-    # Tiny notional → flat ₹20 × 2 dominates: 40/14800 ≈ 27 bps.
+    assert abs(large - 40 / 1_480_000 * 10_000) < 0.05
+    # Tiny notional → the percentage fee (₹4.44/order) is still below the flat
+    # ₹20, so it keeps binding: 0.06% of notional = 6 bps, same as medium.
     small = brokerage_bps(14_800.0)
-    assert abs(small - 40_00 / 14_800) < 0.5
+    assert abs(small - 6.0) < 0.2
 
 
 def test_leg_costs_are_positive_and_ordered() -> None:

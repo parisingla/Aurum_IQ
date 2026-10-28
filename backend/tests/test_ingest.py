@@ -31,7 +31,7 @@ def test_mixed_quality_upload_reports_everything() -> None:
     frame = report.frame
     assert frame is not None
     assert set(frame.columns) >= {"tradeDate", "symbol", "expiry", "settle", "volumeLots", "stale", "finePerGram"}
-    assert 0.0 < float(frame["finePerGram"].iloc[0]) < 5000.0
+    assert 0.0 < float(frame["finePerGram"].iloc[0]) < 50000.0
 
 
 def test_stale_rows_are_flagged_with_warning() -> None:
@@ -39,7 +39,7 @@ def test_stale_rows_are_flagged_with_warning() -> None:
     assert report.ok
     assert len(report.warnings) >= 2
     frame = report.frame
-    flag = frame.loc[(frame["tradeDate"] == "2026-01-05") & (frame["symbol"] == "GOLDM"), "stale"].item()
+    flag = frame.loc[(frame["tradeDate"] == "2026-01-05") & (frame["contractCode"] == "GOLDM05FEB26FUT"), "stale"].item()
     assert bool(flag)
 
 
@@ -71,7 +71,8 @@ def test_negative_oi_rejected() -> None:
     report = parse_upload(CSV_NEGATIVE_OI.encode("utf-8"))
     messages = " | ".join(issue.message for issue in report.errors)
     assert "≥ 0" in messages
-    assert report.rows_accepted == 3
+    # SILVER is not a gold contract and the negative-OI GOLDM row is rejected.
+    assert report.rows_accepted == 2
 
 
 def test_duplicate_keys_dropped() -> None:
@@ -86,6 +87,36 @@ def test_missing_required_columns_clear_error() -> None:
     assert not report.ok
     messages = " | ".join(issue.message for issue in report.errors)
     assert "Missing required columns" in messages
+
+
+CSV_OFFICIAL = (
+    "Date,Instrument Name,Symbol,Expiry Date,Option Type,Strike Price,Open,High,Low,Close,"
+    "Previous Close,Volume(Lots),Volume(In 000's),Value(Lacs),Open Interest(Lots)\n"
+    '"27 Oct 2026","FUTCOM","GOLD         ","04DEC2026","-","0",'
+    '"142581.00","144265.00","142100.00","144138.00","143073.00","5932","5932.000 GRMS  ","848538.42","15622"\n'
+    '"27 Oct 2026","OPTFUT","GOLD         ","30OCT2026","CE","196500","","","","0.50","0.50","0","0.000 GRMS  ","0.00","0"\n'
+    '"27 Oct 2026","FUTCOM","ALUMINI      ","30OCT2026","-","0",'
+    '"329.45","335.85","328.90","334.10","330.70","2097","2097.000 KGS  ","6970.11","297"\n'
+)
+
+
+def test_official_datewise_bhavcopy_format() -> None:
+    """The mcxindia date-wise download: spaced dates, FUTCOM rows, option chains."""
+    report = parse_upload(CSV_OFFICIAL.encode("utf-8"))
+    assert report.ok
+    assert report.rows_total == 3
+    assert report.rows_accepted == 1  # option row and non-gold futures dropped
+    assert any("option rows" in warning.message for warning in report.warnings)
+    frame = report.frame
+    row = frame.iloc[0]
+    assert str(row["tradeDate"]) == "2026-10-27"
+    assert str(row["expiry"]) == "2026-12-04"
+    assert float(row["settle"]) == 144138.0
+    assert float(row["volumeLots"]) == 5932.0  # Volume(Lots), not the gram-weighted column
+    assert float(row["openInterestLots"]) == 15622.0
+    assert not bool(row["stale"])
+    assert str(row["contractCode"]) == "GOLD04DEC26"  # regenerated, not the segment token
+    assert float(row["finePerGram"]) == 144138.0 / 10 / 0.995
 
 
 def test_file_digest_is_stable() -> None:

@@ -34,9 +34,10 @@ ALIASES: dict[str, list[str]] = {
     "low": ["low", "lowprice", "l"],
     "settle": ["close", "settle", "settleprice", "settlement", "settlementprice", "c"],
     "prevSettle": ["previousclose", "prevclose", "prevsettle"],
-    "volumeLots": ["volume", "volumelots", "vol", "tradedvolume"],
-    "openInterestLots": ["openinterest", "openinterestlots", "oi"],
-    "valueLakh": ["value", "valueinlakh", "valuelakh", "turnover"],
+    "volumeLots": ["volume", "volumelots", "vol", "tradedvolume", "volume(lots)"],
+    "openInterestLots": ["openinterest", "openinterestlots", "oi", "openinterest(lots)"],
+    "valueLakh": ["value", "valueinlakh", "valuelakh", "turnover", "value(lacs)"],
+    "optionType": ["optiontype", "option"],
 }
 
 REQUIRED = {"tradeDate", "symbol", "expiry", "settle"}
@@ -46,12 +47,18 @@ GOLD_SYMBOL_RE = re.compile(r"^(GOLD(PETAL|GUINEA|TEN|M)?)(\d{2}[A-Z]{3}\d{2}FUT
 DATE_FORMATS: tuple[str, ...] = (
     "%Y-%m-%d",
     "%d%b%Y",
+    "%d %b %Y",
     "%d-%b-%Y",
     "%d/%m/%Y",
     "%d-%m-%Y",
     "%Y/%m/%d",
     "%Y%m%d",
 )
+
+# The date-wise bhavcopy marks derivatives rows in "Instrument Name"; contract
+# columns that hold such tokens instead of a real contract code are ignored.
+INSTRUMENT_TYPE_RE = re.compile(r"^(FUT|OPT)(COM|IDX|STK|CUR|FUT)$")
+OPTION_TYPES = {"CE", "PE", "CA", "PA"}
 
 
 @dataclass
@@ -159,10 +166,19 @@ def parse_upload(data: bytes) -> IngestReport:
     rows: list[dict[str, float | str | int | bool]] = []
     seen_keys: set[tuple[str, str, str]] = set()
     number_columns = ("open", "high", "low", "settle", "prevSettle", "volumeLots", "openInterestLots", "valueLakh")
+    option_rows = 0
 
     for position, (_, source) in enumerate(raw_frame.iterrows()):
         row_number = position + 2  # header is row 1; data starts at row 2
         values = cells(source)
+
+        # Date-wise bhavcopies mix futures with option chains; only futures
+        # rows carry a settlement price. Skipped option rows are aggregated
+        # into one warning instead of one error per row.
+        if (values.get("optionType", "") or "").strip().upper() in OPTION_TYPES:
+            option_rows += 1
+            continue
+
         trade_date = _parse_date(values.get("tradeDate", ""), row_number, report.errors)
         expiry = _parse_date(values.get("expiry", ""), row_number, report.errors)
         symbol = _canonical_symbol(values.get("symbol", ""), row_number, report.errors)
@@ -186,10 +202,16 @@ def parse_upload(data: bytes) -> IngestReport:
             continue
         seen_keys.add(key)
 
+        # The date-wise bhavcopy puts the segment ("FUTCOM") under Instrument
+        # Name — such tokens are not contract codes, so regenerate the code.
+        contract_code = (values.get("contractCode", "") or "").strip()
+        if INSTRUMENT_TYPE_RE.match(contract_code.upper()):
+            contract_code = ""
+
         row_values = {
             "tradeDate": trade_date,
             "symbol": symbol,
-            "contractCode": values.get("contractCode", "") or _contract_code(symbol, expiry),
+            "contractCode": contract_code or _contract_code(symbol, expiry),
             "contractId": f"{symbol}-{expiry}",
             "expiry": expiry,
         }
@@ -217,6 +239,14 @@ def parse_upload(data: bytes) -> IngestReport:
 
         rows.append(row_values)
         report.symbols.add(symbol)
+
+    if option_rows:
+        report.warnings.append(
+            IngestIssue(
+                row=0,
+                message=f"Skipped {option_rows:,} option rows (CE/PE) — only futures rows are ingested.",
+            )
+        )
 
     report.rows_total = len(raw_frame)
     report.rows_accepted = len(rows)
