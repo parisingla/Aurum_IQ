@@ -5,7 +5,7 @@ import { PanelSkeleton } from "@/components/ui/states";
 
 export const metadata = {
   title: "Contracts",
-  description: "Live MCX gold contract rows across five products — demo fixtures.",
+  description: "Live MCX gold contract rows across five products — bundled bhavcopy or your own upload.",
 };
 
 export default function ContractsPage() {

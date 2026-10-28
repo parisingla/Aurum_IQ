@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { ArrowLeftRight, ShieldCheck, TriangleAlert } from "lucide-react";
 import { PageShell, useRefreshNonce } from "@/components/layout/shell";
 import { Badge } from "@/components/ui/badge";
+import { DataModeBadge } from "@/components/ui/data-mode-badge";
 import { Panel } from "@/components/ui/panel";
 import { SelectField } from "@/components/ui/field";
 import { Segmented } from "@/components/ui/segmented";
@@ -94,7 +95,7 @@ export function SpreadLab() {
     <PageShell
       title="Spread Lab"
       subtitle="Pick two products and the terminal matches their expiries, strips purity and carry, then shows what is left — with the arithmetic written out underneath."
-      actions={<Badge tone="gold">DEMO DATA</Badge>}
+      actions={<DataModeBadge />}
     >
       {/* Controls */}
       <Panel>

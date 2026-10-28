@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Check, X } from "lucide-react";
 import { PageShell, useRefreshNonce } from "@/components/layout/shell";
 import { Badge } from "@/components/ui/badge";
+import { DataModeBadge } from "@/components/ui/data-mode-badge";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { Panel } from "@/components/ui/panel";
@@ -88,7 +89,7 @@ export function ContractExplorer() {
     <PageShell
       title="Contract Explorer"
       subtitle="Every live row across the five gold products: settle, fine-gold restatement, liquidity and staleness. Click a row for the full record and the tender window."
-      actions={<Badge tone="gold">DEMO FIXTURES</Badge>}
+      actions={<DataModeBadge />}
     >
       <Panel padded={false}>
         <div className="flex flex-wrap items-end gap-3 border-b border-line px-4 py-3.5">

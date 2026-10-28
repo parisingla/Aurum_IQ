@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { PageShell, useRefreshNonce } from "@/components/layout/shell";
-import { Badge } from "@/components/ui/badge";
+import { DataModeBadge } from "@/components/ui/data-mode-badge";
 import { Button } from "@/components/ui/button";
 import { Panel } from "@/components/ui/panel";
 import { SelectField, NumberField } from "@/components/ui/field";
@@ -91,7 +91,7 @@ export function BacktestingStudio() {
     <PageShell
       title="Backtesting Studio"
       subtitle="Walk-forward backtest with cost-adjusted signals — train on historical data, test out-of-sample, then roll forward."
-      actions={<Badge tone="warning">DEMO DATA</Badge>}
+      actions={<DataModeBadge />}
     >
       {/* Parameters */}
       <Panel eyebrow="Configuration" title="Backtest parameters">
