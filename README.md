@@ -141,6 +141,12 @@ Vercel serverless functions keep **no state between requests** and mount a read-
 
 To enable on Vercel: Project → **Storage** → **Upstash Redis** → create (free tier is plenty) — the integration injects both variables automatically. `vercel.json` already raises the upload function's timeout to 60 s for the 16k-row parse.
 
+### AI mode (OpenRouter)
+
+`POST /api/assistant/query` accepts `"useLlm": true`. The engine computes a compact fact brief — dataset status, trust checks, spread summaries, front-contract fines, the latest backtest — and hands **only that brief** to the LLM, so the narrative can annotate but never contradict the dashboard. Responses carry `mode: "llm"` (OpenRouter answered) or `mode: "template"` (deterministic grounded answers; also the fallback whenever the LLM is unset, out of credits, or unreachable — the assistant never breaks).
+
+Configure with `OPENROUTER_API_KEY` (get one at openrouter.ai/keys) and optionally `OPENROUTER_MODEL`. The default chain tries `qwen/qwen3-30b-a3b-instruct-2507` (OpenRouter deprecated the Qwen `:free` tier in Oct 2026) and falls through to a live zero-cost model. In the UI, uploading a CSV enables the **“Analyze my dataset”** button on the AI Research Assistant page — one click, full read of the loaded data.
+
 ## Data modes
 
 All frontend data goes through `src/lib/api/index.ts`.
