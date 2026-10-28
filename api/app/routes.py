@@ -276,10 +276,15 @@ async def upload_dataset(file: UploadFile) -> dict[str, Any]:
     dataset_id = f"ds-{digest12}"
     from_date, to_date = date_bounds(frame)
 
-    RAW_DIR.mkdir(parents=True, exist_ok=True)
+    # Keep the raw file for the preview endpoint when the filesystem is
+    # writable (local dev). On Vercel it is read-only — the parsed rows live
+    # in the store's mirror instead, and preview 404s gracefully.
     safe_name = (file.filename or "upload.csv").replace("\\", "_").replace("/", "_").replace(" ", "_")
     raw_path = RAW_DIR / f"{digest[:16]}-{safe_name}"
-    raw_path.write_bytes(data)
+    try:
+        raw_path.write_bytes(data)
+    except OSError:
+        pass
 
     record = UploadRecord(
         dataset_id=dataset_id,
